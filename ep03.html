@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Linha 0 · Ep. 03</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Special+Elite&display=block" rel="stylesheet">
+<style>
+  html, body { margin: 0; background: #000; color: #E9ECF2; font-family: system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 0; }
+  canvas { height: calc(100vh - 70px); max-width: 100vw; aspect-ratio: 9 / 16; background: #070A14; }
+  #ui { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+  button { background: #1A2030; color: #E9ECF2; border: 1px solid #3A4050; padding: 6px 14px; border-radius: 6px; cursor: pointer; }
+  body.render #ui { display: none; }
+  body.render { padding: 0; }
+  body.render canvas { height: auto; width: 1080px; }
+</style>
+</head>
+<body>
+<canvas id="tela" width="1080" height="1920"></canvas>
+<div id="ui">
+  <button id="play">▶ Play</button>
+  <button id="reiniciar">⟲ Reiniciar</button>
+  <span id="relogio">0.00 s</span>
+</div>
+<script>
+// ============================================================
+// LINHA 0 · EP. 03 — "Ponto Final"
+// Linha do tempo em segundos. As legendas vêm da narração (LEGENDAS).
+// ============================================================
+const EPISODIO = '03';
+const PROXIMA_PARTE = 4;
+
+const CENAS = [
+  { inicio: 0,    fim: 3.5,  draw: cenaAnteriormente },
+  { inicio: 3.5,  fim: 10.5, draw: cenaQuaseDiz },
+  { inicio: 10.5, fim: 17,   draw: cenaPontoFinal },
+  { inicio: 17,   fim: 24,   draw: cenaViram },
+  { inicio: 24,   fim: 32,   draw: cenaRegra },
+  { inicio: 32,   fim: 36,   draw: cenaVermelha },
+  { inicio: 36,   fim: 39,   draw: cenaContinua },
+];
+
+const REGRA = { numero: 3, texto: 'Quando a luz ficar vermelha, finja que está dormindo.', vermelhas: ['vermelha,', 'dormindo.'], digita: 4.2 };
+
+// Legendas com o tempo real de cada palavra da narração (ElevenLabs Speech to Text)
+const LEGENDAS = [{"palavras": [["Anteriormente...", 0.1], ["o", 1.54], ["motorista", 1.64], ["perguntou", 2.16], ["onde", 2.64], ["eu", 2.86], ["ia", 2.98], ["descer.", 3.12]], "fim": 3.6, "destaques": {"motorista": "perigo", "descer": "perigo"}}, {"palavras": [["Eu", 3.6], ["abri", 3.82], ["a", 4.0], ["boca", 4.12], ["pra", 4.38], ["dizer:", 4.54], ["Santa", 5.16], ["Te...", 5.56], ["e", 6.26], ["travei.", 6.38], ["Era", 7.32], ["o", 7.44], ["nome", 7.52], ["do", 7.72], ["meu", 7.82], ["bairro.", 8.0]], "fim": 8.82, "destaques": {"santa": "pista", "te": "pista", "travei": "perigo", "bairro": "perigo"}}, {"palavras": [["Aí", 10.26], ["eu", 10.38], ["respondi:", 10.48], ["no", 11.38], ["ponto", 11.56], ["final.", 11.84], ["E", 12.68], ["pelo", 12.82], ["retrovisor...", 13.0], ["eu", 14.14], ["vi", 14.3], ["ele", 14.42], ["sorrir.", 14.6]], "fim": 15.46, "destaques": {"ponto": "pista", "final": "pista", "sorrir": "perigo"}}, {"palavras": [["Na", 17.12], ["mesma", 17.24], ["hora,", 17.54], ["todo", 18.02], ["mundo", 18.34], ["virou", 18.6], ["a", 18.78], ["cabeça", 18.86], ["pra", 19.22], ["mim.", 19.36], ["E", 19.96], ["pela", 20.06], ["primeira", 20.26], ["vez...", 20.7], ["eles", 21.42], ["tinham", 21.7], ["olhos.", 22.1]], "fim": 22.98, "destaques": {"virou": "perigo", "olhos": "perigo"}}, {"palavras": [["Tinha", 24.3], ["mais", 24.56], ["um", 24.8], ["adesivo.", 24.9], ["Regra", 26.0], ["número", 26.34], ["três.", 26.7]], "fim": 27.64, "destaques": {"adesivo": "pista", "regra": "pista"}}, {"palavras": [["Aí", 33.6], ["a", 33.8], ["luz", 33.88], ["ficou", 34.06], ["vermelha.", 34.3]], "fim": 35.28, "destaques": {"vermelha": "perigo"}}];
+
+const DURACAO = CENAS[CENAS.length - 1].fim;
+const FPS = 30;
+
+// ---------- Paleta ----------
+const W = 1080, H = 1920;
+const COR = {
+  ceu: '#070A14', traco: '#E9ECF2', laranja: '#FF8A1F', sodio: '#F5A524',
+  perigo: '#E5484D', adesivo: '#F5C518', banco: '#141A28', bancoBorda: '#2A3245',
+  sombra: '#000000', contorno: '#6B7180',
+};
+const TRACO = 14;
+
+// ---------- Utilitários ----------
+const lerp = (a, b, k) => a + (b - a) * k;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const suave = k => { k = clamp(k); return k * k * (3 - 2 * k); };
+const faixa = (u, a, b) => suave((u - a) / (b - a));
+function hash(n) { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
+function ruido(t) { const i = Math.floor(t), f = t - i; return lerp(hash(i), hash(i + 1), suave(f)) * 2 - 1; }
+
+function linha(ctx, pts, cor = COR.traco, larg = TRACO) {
+  ctx.strokeStyle = cor; ctx.lineWidth = larg; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.stroke();
+}
+function rRect(ctx, x, y, w, h, r) {
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+// Luz fluorescente que pisca (determinística)
+function fluor(t, nervosa = 0) {
+  const n = hash(Math.floor(t * 14));
+  const lim = 0.94 - nervosa * 0.25;
+  if (n > lim) return 0.3 + 0.3 * hash(Math.floor(t * 31));
+  return 0.92 + 0.08 * ruido(t * 3);
+}
+
+// ---------- Ônibus (vista de frente, olhando pro fundo) ----------
+const FUNDO = { x0: 380, x1: 700, y0: 830, y1: 1110 };
+function ptParede(lado, d, h) {
+  // lado -1 esquerda / 1 direita; d profundidade 0 (perto) .. 1 (fundo); h 0 (teto) .. 1 (chão)
+  const xPerto = lado < 0 ? -40 : W + 40, xLonge = lado < 0 ? FUNDO.x0 : FUNDO.x1;
+  const x = lerp(xPerto, xLonge, d);
+  const topo = lerp(600, FUNDO.y0, d), chao = lerp(H + 60, FUNDO.y1, d);
+  return [x, lerp(topo, chao, h)];
+}
+
+function desenhaOnibus(ctx, t, o = {}) {
+  const luz = o.luz ?? 1;
+  ctx.fillStyle = '#05070D'; ctx.fillRect(-200, -200, W + 400, H + 400);
+
+  // paredes
+  for (const lado of [-1, 1]) {
+    ctx.fillStyle = '#0C1120';
+    const a = ptParede(lado, 0, 0), b = ptParede(lado, 1, 0), c = ptParede(lado, 1, 1), d = ptParede(lado, 0, 1);
+    ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.lineTo(...c); ctx.lineTo(...d); ctx.fill();
+    // janelas
+    const jan = [[0.02, 0.3], [0.36, 0.56], [0.61, 0.76], [0.8, 0.9]];
+    for (const [d0, d1] of jan) {
+      const p = [ptParede(lado, d0, 0.12), ptParede(lado, d1, 0.12), ptParede(lado, d1, 0.36), ptParede(lado, d0, 0.36)];
+      ctx.save();
+      ctx.beginPath(); ctx.moveTo(...p[0]); p.slice(1).forEach(q => ctx.lineTo(...q)); ctx.closePath();
+      ctx.fillStyle = COR.ceu; ctx.fill(); ctx.clip();
+      // postes de sódio passando (do perto pro fundo)
+      for (let k = 0; k < 3; k++) {
+        const prof = ((t * 0.32 + k / 3 + (lado > 0 ? 0.17 : 0)) % 1);
+        const [px, py] = ptParede(lado, prof, 0.2);
+        const r = lerp(260, 50, prof);
+        const g = ctx.createRadialGradient(px, py, 0, px, py, r);
+        g.addColorStop(0, 'rgba(245,165,36,0.85)'); g.addColorStop(1, 'rgba(245,165,36,0)');
+        ctx.fillStyle = g; ctx.fillRect(px - r, py - r, r * 2, r * 2);
+      }
+      ctx.restore();
+      ctx.strokeStyle = COR.bancoBorda; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.moveTo(...p[0]); p.slice(1).forEach(q => ctx.lineTo(...q)); ctx.closePath(); ctx.stroke();
+    }
+  }
+  // teto e chão
+  ctx.fillStyle = '#0A0E1A';
+  ctx.beginPath(); ctx.moveTo(-40, 600); ctx.lineTo(W + 40, 600); ctx.lineTo(FUNDO.x1, FUNDO.y0); ctx.lineTo(FUNDO.x0, FUNDO.y0); ctx.fill();
+  ctx.fillStyle = '#0E1322';
+  ctx.beginPath(); ctx.moveTo(-40, H + 60); ctx.lineTo(W + 40, H + 60); ctx.lineTo(FUNDO.x1, FUNDO.y1); ctx.lineTo(FUNDO.x0, FUNDO.y1); ctx.fill();
+  // fundo do ônibus com janela traseira
+  ctx.fillStyle = '#0C1120'; ctx.fillRect(FUNDO.x0, FUNDO.y0, FUNDO.x1 - FUNDO.x0, FUNDO.y1 - FUNDO.y0);
+  ctx.fillStyle = COR.ceu; ctx.fillRect(FUNDO.x0 + 30, FUNDO.y0 + 30, FUNDO.x1 - FUNDO.x0 - 60, 110);
+
+  // tubos fluorescentes
+  for (const d of [0.12, 0.45, 0.72]) {
+    const y = lerp(600, FUNDO.y0, d) + 6;
+    const meia = lerp(160, 50, d);
+    ctx.save();
+    ctx.shadowColor = `rgba(150,255,190,${0.8 * luz})`; ctx.shadowBlur = 40 * luz;
+    linha(ctx, [[540 - meia, y], [540 + meia, y]], `rgba(200,255,215,${0.25 + 0.75 * luz})`, lerp(16, 6, d));
+    ctx.restore();
+  }
+  // barra e alças balançando (pêndulo atrasado em relação ao balanço)
+  const barraY = 640;
+  linha(ctx, [[60, barraY], [1020, barraY]], '#3A4255', 8);
+  const ang = o.alca ?? 0;
+  for (const x of [150, 330, 750, 930]) {
+    const comp = 120;
+    const ex = x + Math.sin(ang) * comp, ey = barraY + Math.cos(ang) * comp;
+    linha(ctx, [[x, barraY], [ex, ey]], '#3A4255', 6);
+    ctx.strokeStyle = '#3A4255'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(ex, ey + 18, 18, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+
+// ---------- Personagens ----------
+function banco(ctx, x, sy, s) {
+  ctx.fillStyle = COR.banco; ctx.strokeStyle = COR.bancoBorda; ctx.lineWidth = 6 * s;
+  rRect(ctx, x - 105 * s, sy - 290 * s, 210 * s, 300 * s, 24 * s); ctx.fill(); ctx.stroke();
+  rRect(ctx, x - 115 * s, sy - 10 * s, 230 * s, 46 * s, 14 * s); ctx.fill(); ctx.stroke();
+}
+
+// Passageiro comum: sentado, encarando a frente, sem rosto, imóvel
+function passageiro(ctx, x, sy, s) {
+  const lw = TRACO * s;
+  const omb = sy - 230 * s, cab = omb - 62 * s;
+  linha(ctx, [[x, sy], [x, omb]], COR.traco, lw);
+  linha(ctx, [[x - 42 * s, omb + 14 * s], [x - 60 * s, sy - 60 * s], [x - 28 * s, sy - 4 * s]], COR.traco, lw);
+  linha(ctx, [[x + 42 * s, omb + 14 * s], [x + 60 * s, sy - 60 * s], [x + 28 * s, sy - 4 * s]], COR.traco, lw);
+  linha(ctx, [[x - 42 * s, omb + 14 * s], [x, omb], [x + 42 * s, omb + 14 * s]], COR.traco, lw);
+  linha(ctx, [[x - 26 * s, sy + 20 * s], [x - 34 * s, sy + 190 * s], [x - 54 * s, sy + 194 * s]], COR.traco, lw);
+  linha(ctx, [[x + 26 * s, sy + 20 * s], [x + 34 * s, sy + 190 * s], [x + 54 * s, sy + 194 * s]], COR.traco, lw);
+  ctx.fillStyle = COR.traco; ctx.beginPath(); ctx.arc(x, cab, 48 * s, 0, Math.PI * 2); ctx.fill();
+}
+
+// Davi: olhos pontuais (gx, gy em -1..1), fechado 0..1, boca 0..1, caixa laranja no colo
+function davi(ctx, x, sy, s, o = {}) {
+  const { gx = 0, gy = 0, fechado = 0, boca = 0, abaixa = 0, treme = 0 } = o;
+  const lw = TRACO * s;
+  const omb = sy - 230 * s, cab = omb - 62 * s + abaixa * 10 * s;
+  linha(ctx, [[x, sy], [x, omb]], COR.traco, lw);
+  linha(ctx, [[x - 42 * s, omb + 14 * s], [x, omb], [x + 42 * s, omb + 14 * s]], COR.traco, lw);
+  linha(ctx, [[x - 26 * s, sy + 20 * s], [x - 34 * s, sy + 190 * s], [x - 54 * s, sy + 194 * s]], COR.traco, lw);
+  linha(ctx, [[x + 26 * s, sy + 20 * s], [x + 34 * s, sy + 190 * s], [x + 54 * s, sy + 194 * s]], COR.traco, lw);
+  // mochila de entrega no colo
+  ctx.fillStyle = COR.laranja; rRect(ctx, x - 82 * s, sy - 120 * s, 164 * s, 130 * s, 14 * s); ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x - 82 * s, sy - 82 * s, 164 * s, 8 * s);
+  // braços abraçando a mochila
+  linha(ctx, [[x - 42 * s, omb + 14 * s], [x - 92 * s, sy - 80 * s], [x - 40 * s, sy - 60 * s]], COR.traco, lw);
+  linha(ctx, [[x + 42 * s, omb + 14 * s], [x + 92 * s, sy - 80 * s], [x + 40 * s, sy - 60 * s]], COR.traco, lw);
+  // cabeça
+  const tx = treme * 3 * s;
+  ctx.fillStyle = COR.traco; ctx.beginPath(); ctx.arc(x + tx, cab, 48 * s, 0, Math.PI * 2); ctx.fill();
+  const ox = x + tx + gx * 15 * s, oy = cab - 4 * s + gy * 14 * s;
+  ctx.fillStyle = COR.ceu; ctx.strokeStyle = COR.ceu;
+  for (const lado of [-1, 1]) {
+    const ex = ox + lado * 15 * s;
+    if (fechado > 0.5) { linha(ctx, [[ex - 8 * s, oy + 2 * s], [ex + 8 * s, oy + 2 * s]], COR.ceu, 5 * s); }
+    else { ctx.beginPath(); ctx.ellipse(ex, oy, 6.5 * s, 6.5 * s * (1 - fechado * 1.6), 0, 0, Math.PI * 2); ctx.fill(); }
+  }
+  if (boca > 0.02) {
+    ctx.fillStyle = COR.ceu; ctx.beginPath();
+    ctx.ellipse(x + tx + gx * 6 * s, cab + 24 * s, 9 * s, 3 * s + boca * 11 * s, 0, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+// O Passageiro: 1,25× mais alto, preto com contorno cinza, cabeça alongada, sem rosto
+function oPassageiro(ctx, x, sy, s, o = {}) {
+  const S = s * 1.25;
+  const omb = sy - 230 * S, cab = omb - 92 * S;
+  const membros = [
+    [[x, sy], [x, omb]],
+    [[x - 42 * S, omb + 14 * S], [x, omb], [x + 42 * S, omb + 14 * S]],
+    [[x + 42 * S, omb + 14 * S], [x + 62 * S, sy - 60 * S], [x + 28 * S, sy - 4 * S]],
+    [[x - 26 * S, sy + 20 * S], [x - 34 * S, sy + 150 * S], [x - 54 * S, sy + 154 * S]],
+    [[x + 26 * S, sy + 20 * S], [x + 34 * S, sy + 150 * S], [x + 54 * S, sy + 154 * S]],
+  ];
+  // braço esquerdo (da tela): repousa no colo ou estica até o banco do Davi
+  const k = o.alcance ?? 0;
+  const ombE = [x - 42 * S, omb + 14 * S];
+  const maoRep = [x - 28 * S, sy - 4 * S], maoAlvo = o.alvo ?? maoRep;
+  const mao = [lerp(maoRep[0], maoAlvo[0], k), lerp(maoRep[1], maoAlvo[1], k)];
+  const cot = [lerp(x - 62 * S, (ombE[0] + mao[0]) / 2, k), lerp(sy - 60 * S, (ombE[1] + mao[1]) / 2 - 25 * S, k)];
+  membros.push([ombE, cot, mao]);
+  for (const passo of [[COR.contorno, TRACO * S + 8], [COR.sombra, TRACO * S]]) {
+    for (const m of membros) linha(ctx, m, passo[0], passo[1]);
+  }
+  // dedos longos sobre a borda do banco
+  if (k > 0.85) {
+    const a = (k - 0.85) / 0.15;
+    for (let i = -1; i <= 1; i++) {
+      const f = [[mao[0], mao[1]], [mao[0] - 10 + i * 14, mao[1] + 34 * a], [mao[0] - 4 + i * 16, mao[1] + 58 * a]];
+      linha(ctx, f, COR.contorno, 10); linha(ctx, f, COR.sombra, 5);
+    }
+  }
+  ctx.fillStyle = COR.sombra; ctx.strokeStyle = COR.contorno; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.ellipse(x, cab, 42 * S, 74 * S, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+}
+
+// ---------- Cena base: interior com todos os passageiros ----------
+const DAVI = { x: 290, sy: 1530, s: 1 };
+const ALTO = { x: 590, sy: 1530 };
+const ALVO_MAO = [395, 1250]; // borda do encosto do banco do Davi, ao lado do ombro
+
+function interior(ctx, t, o = {}) {
+  const giro = o.giro ?? 0;
+  // ônibus gira; passageiros ficam imóveis
+  ctx.save();
+  ctx.translate(540, 1700); ctx.rotate(giro); ctx.translate(-540, -1700);
+  desenhaOnibus(ctx, t, { luz: o.luz, alca: -giro * 6 });
+  ctx.restore();
+
+  // fileira 3 e 2 (fundo) — imóveis
+  for (const [x, sy, s] of [[430, 1140, 0.45], [650, 1140, 0.45], [380, 1260, 0.62], [740, 1260, 0.62]]) {
+    banco(ctx, x, sy, s); passageiro(ctx, x, sy, s);
+  }
+  // fileira 1
+  ctx.save();
+  ctx.translate(540, 1700); ctx.rotate(giro * 0.9); ctx.translate(-540, -1700); // só o Davi acompanha o balanço
+  banco(ctx, DAVI.x, DAVI.sy, 1);
+  davi(ctx, DAVI.x, DAVI.sy, 1, o.davi);
+  ctx.restore();
+  banco(ctx, ALTO.x, ALTO.sy, 1);
+  banco(ctx, 900, 1530, 1); passageiro(ctx, 900, 1530, 1);
+  oPassageiro(ctx, ALTO.x, ALTO.sy, 1, { alcance: o.alcance ?? 0, alvo: ALVO_MAO });
+
+  // luz fluorescente esverdeada
+  const l = o.luz ?? 1;
+  ctx.fillStyle = `rgba(110,255,170,${0.05 * l})`; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = `rgba(0,0,0,${(1 - l) * 0.55})`; ctx.fillRect(0, 0, W, H);
+}
+
+function vinheta(ctx, forca = 0.7, cor = '0,0,0') {
+  const g = ctx.createRadialGradient(540, 1100, 300, 540, 1100, 1250);
+  g.addColorStop(0, `rgba(${cor},0)`); g.addColorStop(1, `rgba(${cor},${forca})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+
+// ---------- Extras do motor (Ep. 03 em diante) ----------
+// Passageiro comum com opções: vira (-1..1, cabeça desliza na direção do Davi), olhos (0..1, aparecem olhos)
+function passageiroO(ctx, x, sy, s, o = {}) {
+  passageiro(ctx, x, sy, s);
+  const vira = o.vira ?? 0, olhos = o.olhos ?? 0;
+  if (!vira && !olhos) return;
+  const omb = sy - 230 * s, cab = omb - 62 * s;
+  // redesenha a cabeça deslocada
+  ctx.fillStyle = COR.banco; ctx.beginPath(); ctx.arc(x, cab, 50 * s, 0, Math.PI * 2); ctx.fill();
+  const cx = x + vira * 14 * s;
+  linha(ctx, [[x, omb], [cx, cab + 40 * s]], COR.traco, TRACO * s);
+  ctx.fillStyle = COR.traco; ctx.beginPath(); ctx.arc(cx, cab, 48 * s, 0, Math.PI * 2); ctx.fill();
+  if (olhos > 0) {
+    ctx.fillStyle = `rgba(7,10,20,${olhos})`;
+    const ox = cx + vira * 20 * s;
+    for (const l of [-1, 1]) { ctx.beginPath(); ctx.arc(ox + l * 15 * s, cab - 2 * s, 7 * s * olhos, 0, Math.PI * 2); ctx.fill(); }
+  }
+}
+
+// Interior com opções novas: pass (opções dos passageiros), sumir (lista de x de quem sumiu), vermelho (0..1)
+function interiorX(ctx, t, o = {}) {
+  const giro = o.giro ?? 0;
+  ctx.save();
+  ctx.translate(540, 1700); ctx.rotate(giro); ctx.translate(-540, -1700);
+  desenhaOnibus(ctx, t, { luz: o.luz, alca: -giro * 6 });
+  ctx.restore();
+  const sumir = o.sumir || [];
+  for (const [x, sy, s] of [[430, 1140, 0.45], [650, 1140, 0.45], [380, 1260, 0.62], [740, 1260, 0.62]]) {
+    banco(ctx, x, sy, s);
+    if (sumir.includes(x)) { if (o.adesivoNoBanco) adesivinho(ctx, x, sy - 30 * s, s); continue; }
+    const p = o.pass || {};
+    passageiroO(ctx, x, sy, s, { olhos: p.olhos, vira: (p.vira ?? 0) * (x > DAVI.x ? -1 : 1) });
+  }
+  ctx.save();
+  ctx.translate(540, 1700); ctx.rotate(giro * 0.9); ctx.translate(-540, -1700);
+  banco(ctx, DAVI.x, DAVI.sy, 1);
+  if (!o.semDavi) davi(ctx, DAVI.x, DAVI.sy, 1, o.davi);
+  ctx.restore();
+  banco(ctx, ALTO.x, ALTO.sy, 1);
+  banco(ctx, 900, 1530, 1);
+  if (!sumir.includes(900)) { const p = o.pass || {}; passageiroO(ctx, 900, 1530, 1, { olhos: p.olhos, vira: -(p.vira ?? 0) }); }
+  if (!o.semAlto) oPassageiro(ctx, ALTO.x, ALTO.sy, 1, { alcance: o.alcance ?? 0, alvo: ALVO_MAO });
+  const l = o.luz ?? 1;
+  ctx.fillStyle = `rgba(110,255,170,${0.05 * l * (1 - (o.vermelho ?? 0))})`; ctx.fillRect(0, 0, W, H);
+  luzVermelha(ctx, o.vermelho ?? 0);
+  ctx.fillStyle = `rgba(0,0,0,${(1 - l) * 0.55})`; ctx.fillRect(0, 0, W, H);
+}
+
+function luzVermelha(ctx, v) {
+  if (v <= 0) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillStyle = `rgb(255,${Math.round(lerp(255, 70, v))},${Math.round(lerp(255, 70, v))})`;
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = `rgba(229,40,50,${0.12 * v})`; ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+function adesivinho(ctx, x, y, s) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(0.12);
+  ctx.fillStyle = COR.adesivo; rRect(ctx, -60 * s, -40 * s, 120 * s, 80 * s, 8 * s); ctx.fill();
+  ctx.fillStyle = '#0B0B0B'; ctx.fillRect(-60 * s, -30 * s, 120 * s, 16 * s);
+  ctx.font = `${Math.round(34 * s)}px "Archivo Black"`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('Nº 4', 0, 14 * s);
+  ctx.restore();
+}
+
+// Efeito VHS do "Anteriormente"
+function vhs(ctx, u) {
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  for (let y = 0; y < H; y += 6) ctx.fillRect(0, y, W, 2);
+  for (let i = 0; i < 260; i++) {
+    const n = hash(i + Math.floor(u * 24) * 997);
+    ctx.fillStyle = `rgba(233,236,242,${0.08 * hash(i * 3.1 + n)})`;
+    ctx.fillRect(n * W, hash(i * 7.7 + n) * H, 3, 3);
+  }
+  vinheta(ctx, 0.85);
+  ctx.font = '44px "Archivo Black"'; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = COR.perigo; ctx.beginPath(); ctx.arc(760, 1838, 12, 0, Math.PI * 2);
+  if (Math.floor(u * 2) % 2 === 0) ctx.fill();
+  ctx.fillStyle = COR.traco; ctx.fillText('ANTERIORMENTE', 1040, 1854);
+}
+
+// Retrovisor pequeno no alto (olhos do motorista). abre 0..1, olhar -1..1, sorri 0..1
+function retroInset(ctx, abre, olhar = -0.2, sorri = 0) {
+  const mx = 560, my = 700, mw = 440, mh = 150;
+  ctx.save(); rRect(ctx, mx, my, mw, mh, 30); ctx.clip();
+  ctx.fillStyle = '#0C1220'; ctx.fillRect(mx, my, mw, mh);
+  for (const ex of [mx + 150, mx + 290]) {
+    const ab = abre * lerp(1, 0.45, sorri);
+    ctx.save(); ctx.beginPath(); ctx.ellipse(ex, my + 80, 40, 14 * ab + 0.1, 0, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = '#D9D2BE'; ctx.fillRect(ex - 45, my + 60, 90, 40);
+    ctx.fillStyle = '#0A0A0A'; ctx.beginPath(); ctx.arc(ex + olhar * 14, my + 82, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    if (sorri > 0) { // rugas do sorriso embaixo dos olhos
+      ctx.strokeStyle = `rgba(217,210,190,${0.7 * sorri})`; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(ex, my + 70, 44, 0.25 * Math.PI, 0.75 * Math.PI); ctx.stroke();
+    }
+  }
+  ctx.restore();
+  ctx.strokeStyle = '#2E3546'; ctx.lineWidth = 10; rRect(ctx, mx, my, mw, mh, 30); ctx.stroke();
+}
+
+// Cartão de regra (genérico: usa REGRA)
+function cartaoRegra(ctx, u, fundo) {
+  ctx.save(); ctx.filter = 'blur(6px) brightness(0.45)'; fundo(); ctx.restore();
+  vinheta(ctx, 0.7);
+  const e = faixa(u, 0, 0.35);
+  const esc = lerp(1.35, 1, e) + Math.sin(clamp((u - 0.35) / 0.3) * Math.PI) * 0.025;
+  const w = 860, h = 780;
+  ctx.save();
+  ctx.globalAlpha = e;
+  ctx.translate(540, 1240); ctx.rotate(-0.035); ctx.scale(esc, esc);
+  ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 16;
+  ctx.fillStyle = COR.adesivo; rRect(ctx, -w / 2, -h / 2, w, h, 22); ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.fillStyle = '#C9A10F'; ctx.beginPath(); ctx.moveTo(w / 2, h / 2 - 70); ctx.lineTo(w / 2 - 70, h / 2); ctx.lineTo(w / 2 - 60, h / 2 - 60); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#0B0B0B'; ctx.fillRect(-w / 2, -h / 2 + 50, w, 110);
+  ctx.fillStyle = COR.adesivo; ctx.font = '52px "Archivo Black"'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('AVISO AOS PASSAGEIROS', 0, -h / 2 + 106);
+  ctx.fillStyle = '#0B0B0B'; ctx.font = '118px "Archivo Black"';
+  ctx.fillText(`REGRA Nº ${REGRA.numero}`, 0, -h / 2 + 270);
+  linha(ctx, [[-w / 2 + 70, -h / 2 + 350], [w / 2 - 70, -h / 2 + 350]], '#0B0B0B', 6);
+  const n = Math.floor(clamp((u - 1.0) / REGRA.digita) * REGRA.texto.length);
+  ctx.font = '58px "Special Elite"'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  const linhas = quebra(ctx, REGRA.texto, w - 150);
+  let resta = n, ly = -h / 2 + 440, ultimo = [-w / 2 + 75, ly];
+  for (const l of linhas) {
+    if (resta <= 0) break;
+    const parte = l.slice(0, resta);
+    let cx = -w / 2 + 75;
+    for (const pal of parte.split(/( )/)) {
+      const v = REGRA.vermelhas.some(r => r.startsWith(pal) && pal.length > 2) || REGRA.vermelhas.includes(pal);
+      ctx.fillStyle = v ? '#B3141B' : '#111'; ctx.fillText(pal, cx, ly); cx += ctx.measureText(pal).width;
+    }
+    ultimo = [cx, ly];
+    resta -= l.length + 1; ly += 78;
+  }
+  if (n < REGRA.texto.length || Math.floor(u * 2.5) % 2 === 0) { ctx.fillStyle = '#0B0B0B'; ctx.fillRect(ultimo[0] + 4, ultimo[1] - 46, 26, 52); }
+  ctx.restore();
+}
+
+function telaContinua(ctx, u) {
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  if (u < 0.12) { ctx.fillStyle = 'rgba(229,72,77,0.35)'; ctx.fillRect(0, 0, W, H); }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = COR.traco; ctx.font = '150px "Archivo Black"';
+  ctx.fillText('CONTINUA', 540, 900);
+  ctx.fillStyle = COR.adesivo; ctx.font = '54px "Archivo Black"';
+  ctx.fillText(`PARTE ${PROXIMA_PARTE} · AMANHÃ, 21H`, 540, 1030);
+  ctx.fillStyle = '#8A90A0'; ctx.font = '44px "Archivo Black"';
+  ctx.fillText('@continuaamanha.tv', 540, 1130);
+}
+
+// Close no Davi (mesmo enquadramento do gancho do Ep. 02)
+function closeDavi(ctx, t, u, z, opts, extra) {
+  const fx = DAVI.x + 10, fy = 1210;
+  ctx.save();
+  ctx.translate(540, 1180); ctx.scale(z, z); ctx.translate(-fx, -fy);
+  interiorX(ctx, t, Object.assign({ alcance: 1 }, opts));
+  ctx.restore();
+  if (extra) extra();
+}
+
+// ============================================================
+// CENAS — Ep. 03 "Ponto Final"
+// ============================================================
+
+// 1. Anteriormente — "Desce onde?" (fim do Ep. 02)
+function cenaAnteriormente(ctx, u) {
+  ctx.save(); ctx.filter = 'grayscale(0.85) contrast(1.15) brightness(0.9)';
+  closeDavi(ctx, u, u, lerp(1.9, 2.05, u / 3.5), { luz: 1, davi: { gx: 0.35, gy: -0.9, boca: faixa(u, 0.5, 3), treme: 0.4 * ruido(u * 25) } },
+    () => retroInset(ctx, 1, -0.4));
+  ctx.restore();
+  vhs(ctx, u);
+}
+
+// 2. Quase diz o bairro — a boca abre ("Santa T—") e trava
+function cenaQuaseDiz(ctx, u) {
+  const t = 3.5 + u;
+  const boca = u < 2.4 ? lerp(0, 0.85, faixa(u, 1.5, 1.8)) : lerp(0.85, 0, faixa(u, 2.4, 2.6));
+  const arregala = faixa(u, 2.4, 2.6);
+  const treme = u > 2.4 ? 0.6 * ruido(u * 30) : 0.2 * ruido(u * 20);
+  const z = lerp(2.05, 2.5, faixa(u, 0, 7));
+  closeDavi(ctx, t, u, z, { luz: fluor(t, 0.3), davi: { gx: lerp(0.35, 0.1, arregala), gy: lerp(-0.9, 0.2, arregala), boca, treme } },
+    () => retroInset(ctx, 1, lerp(-0.4, -0.6, arregala)));
+  // trava: flash vermelho curto quando ele fecha a boca
+  const trava = faixa(u, 2.4, 2.5) * (1 - faixa(u, 2.5, 3.3));
+  if (trava > 0) vinheta(ctx, 0.7 * trava, '229,72,77');
+  vinheta(ctx, lerp(0.6, 0.85, faixa(u, 0, 7)));
+}
+
+// 3. "No ponto final" — os olhos do motorista sorriem no retrovisor
+function cenaPontoFinal(ctx, u) {
+  const t = 10.5 + u;
+  const z = lerp(1, 1.18, faixa(u, 0, 6.5));
+  ctx.save(); ctx.translate(540, 1000); ctx.scale(z, z); ctx.translate(-540, -1000);
+  ctx.fillStyle = '#04060B'; ctx.fillRect(-100, -100, W + 200, H + 200);
+  ctx.fillStyle = COR.ceu; ctx.fillRect(-100, 1250, W + 200, 800);
+  for (let k = 0; k < 3; k++) {
+    const p = (t * 0.45 + k / 3) % 1;
+    const px = lerp(540, k % 2 ? 1300 : -220, p), py = lerp(1330, 1250, p * 0.4), r = lerp(40, 420, p * p);
+    const g = ctx.createRadialGradient(px, py, 0, px, py, r);
+    g.addColorStop(0, `rgba(245,165,36,${0.7 * (1 - p * 0.3)})`); g.addColorStop(1, 'rgba(245,165,36,0)');
+    ctx.fillStyle = g; ctx.fillRect(px - r, py - r, r * 2, r * 2);
+  }
+  ctx.fillStyle = '#04060B'; ctx.fillRect(-100, 1180, W + 200, 90);
+  linha(ctx, [[540, 600], [540, 800]], '#2A3040', 26);
+  const mx = 110, my = 790, mw = 860, mh = 330;
+  ctx.save(); rRect(ctx, mx, my, mw, mh, 60); ctx.clip();
+  const vidro = ctx.createLinearGradient(0, my, 0, my + mh);
+  vidro.addColorStop(0, '#111827'); vidro.addColorStop(1, '#070A12');
+  ctx.fillStyle = vidro; ctx.fillRect(mx, my, mw, mh);
+  const g2 = ctx.createLinearGradient(0, my + 110, 0, my + 250);
+  g2.addColorStop(0, 'rgba(245,165,36,0)'); g2.addColorStop(0.5, 'rgba(245,165,36,0.22)'); g2.addColorStop(1, 'rgba(245,165,36,0)');
+  ctx.fillStyle = g2; ctx.fillRect(mx, my, mw, mh);
+  const sorri = faixa(u, 3.4, 4.4);
+  const olhar = lerp(0.4, 0, faixa(u, 0.5, 1.5));
+  for (const ex of [420, 660]) {
+    const ey = my + 180, ab = lerp(1, 0.38, sorri);
+    ctx.save(); ctx.beginPath(); ctx.ellipse(ex, ey + sorri * 6, 74, 30 * ab, 0, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = '#D9D2BE'; ctx.fillRect(ex - 80, ey - 40, 160, 80);
+    ctx.fillStyle = '#0A0A0A'; ctx.beginPath(); ctx.arc(ex + olhar * 30, ey + 2, 20, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(ex - 90, ey - 70 + sorri * 18, 180, 30);
+    if (sorri > 0) {
+      ctx.strokeStyle = `rgba(217,210,190,${0.75 * sorri})`; ctx.lineWidth = 6;
+      for (const d of [0, 14]) { ctx.beginPath(); ctx.arc(ex, ey - 6 + d, 86, 0.28 * Math.PI, 0.72 * Math.PI); ctx.stroke(); }
+    }
+  }
+  ctx.restore();
+  ctx.strokeStyle = '#2E3546'; ctx.lineWidth = 16; rRect(ctx, mx, my, mw, mh, 60); ctx.stroke();
+  ctx.restore();
+  vinheta(ctx, 0.8);
+}
+
+// 4. Todos viram a cabeça pro Davi — e agora têm olhos
+function cenaViram(ctx, u) {
+  const t = 17 + u;
+  const snap = faixa(u, 1.6, 1.75);
+  const olhos = faixa(u, 4.9, 5.3);
+  const z = lerp(1, 1.08, faixa(u, 0, 7));
+  ctx.save(); ctx.translate(540, 1300); ctx.scale(z, z); ctx.translate(-540, -1300);
+  interiorX(ctx, t, { luz: fluor(t, 0.2), alcance: 1, pass: { vira: snap, olhos },
+    davi: { gx: lerp(0, 0.5, faixa(u, 2, 2.4)), gy: -0.4, treme: snap * 0.6 * ruido(u * 30) } });
+  ctx.restore();
+  const pulso = faixa(u, 1.6, 1.7) * (1 - faixa(u, 1.7, 2.6)) + faixa(u, 4.9, 5.0) * (1 - faixa(u, 5.0, 5.9));
+  if (pulso > 0) vinheta(ctx, 0.75 * pulso, '229,72,77');
+  vinheta(ctx, 0.6);
+}
+
+// 5. Cartão: REGRA Nº 3
+function cenaRegra(ctx, u) {
+  const t = 24 + u;
+  cartaoRegra(ctx, u, () => interiorX(ctx, t, { luz: fluor(t), alcance: 1, pass: { vira: 1, olhos: 1 }, davi: { gy: 1, abaixa: 1 } }));
+}
+
+// 6. Gancho: a luz pisca... e fica vermelha
+function cenaVermelha(ctx, u) {
+  const t = 32 + u;
+  const v = faixa(u, 2.3, 2.45);
+  const luz = u < 2.3 ? fluor(t, 1) : 1;
+  const z = lerp(1, 1.12, faixa(u, 0, 4));
+  ctx.save(); ctx.translate(540, 1300); ctx.scale(z, z); ctx.translate(-540, -1300);
+  interiorX(ctx, t, { luz, vermelho: v, alcance: 1, pass: { vira: 1, olhos: 1 },
+    davi: { gx: 0.5, gy: -0.4, treme: 0.4 * ruido(u * 30) } });
+  ctx.restore();
+  vinheta(ctx, lerp(0.6, 0.9, v));
+}
+
+function cenaContinua(ctx, u) { telaContinua(ctx, u); }
+
+// ============================================================
+// Legenda palavra a palavra (terço superior)
+// ============================================================
+function quebra(ctx, texto, larg) {
+  const pals = texto.split(' '), linhas = []; let atual = '';
+  for (const p of pals) {
+    const teste = atual ? atual + ' ' + p : p;
+    if (ctx.measureText(teste).width > larg && atual) { linhas.push(atual); atual = p; } else atual = teste;
+  }
+  if (atual) linhas.push(atual);
+  return linhas;
+}
+const normaliza = p => p.toLowerCase().replace(/[.,!?…:;"“”]/g, '');
+
+function desenhaLegenda(ctx, _cena, t) {
+  // Legenda sincronizada com a narração: cada palavra aparece quando é falada.
+  const L = LEGENDAS.find(l => t >= l.palavras[0][1] - 0.02 && t < l.fim);
+  if (!L) return;
+  // grupos de até 4 palavras, quebrando depois de pontuação
+  if (!L.grupos) {
+    L.grupos = []; let g = [];
+    L.palavras.forEach(([p], i) => { g.push(i); if (g.length === 4 || /[.,?!:…]$/.test(p)) { L.grupos.push(g); g = []; } });
+    if (g.length) L.grupos.push(g);
+  }
+  let atual = -1;
+  L.palavras.forEach(([, tp], i) => { if (tp <= t) atual = i; });
+  if (atual < 0) return;
+  const grupo = L.grupos.find(g => g.includes(atual));
+  ctx.font = '88px "Archivo Black"'; ctx.textBaseline = 'middle';
+  const esp = ctx.measureText(' ').width, MAX = 940;
+  const linhasPal = []; let lin = [], larg = 0;
+  for (const i of grupo) {
+    const w = ctx.measureText(L.palavras[i][0].toUpperCase()).width;
+    if (lin.length && larg + esp + w > MAX) { linhasPal.push(lin); lin = []; larg = 0; }
+    lin.push(i); larg += (lin.length > 1 ? esp : 0) + w;
+  }
+  linhasPal.push(lin);
+  const y0 = 470 - (linhasPal.length - 1) * 52;
+  linhasPal.forEach((l, li) => {
+    const total = l.reduce((s, i, j) => s + ctx.measureText(L.palavras[i][0].toUpperCase()).width + (j ? esp : 0), 0);
+    let x = 540 - total / 2;
+    for (const i of l) {
+      const [p, tp] = L.palavras[i], P = p.toUpperCase(), w = ctx.measureText(P).width;
+      if (i <= atual) {
+        const pop = 1 + 0.2 * (1 - faixa(t, tp, tp + 0.1));
+        const tipo = L.destaques[normaliza(p)];
+        ctx.save(); ctx.translate(x + w / 2, y0 + li * 104); ctx.scale(pop, pop);
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 16; ctx.strokeStyle = '#000'; ctx.lineJoin = 'round'; ctx.strokeText(P, 0, 0);
+        ctx.fillStyle = tipo === 'perigo' ? COR.perigo : tipo === 'pista' ? COR.adesivo : '#FFFFFF';
+        ctx.fillText(P, 0, 0);
+        ctx.restore();
+      }
+      x += w + esp;
+    }
+  });
+}
+
+function desenhaTag(ctx) {
+  ctx.font = '38px "Archivo Black"'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  const txt = `LINHA 0 · EP. ${EPISODIO}`, w = ctx.measureText(txt).width;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; rRect(ctx, 48, 96, w + 48, 70, 12); ctx.fill();
+  ctx.fillStyle = COR.adesivo; ctx.fillRect(48, 96, 10, 70);
+  ctx.fillStyle = COR.traco; ctx.fillText(txt, 78, 132);
+}
+
+// ============================================================
+// Motor
+// ============================================================
+const tela = document.getElementById('tela');
+const ctx = tela.getContext('2d');
+
+function renderFrame(t) {
+  t = clamp(t, 0, DURACAO - 1e-6);
+  const cena = CENAS.find(c => t >= c.inicio && t < c.fim) || CENAS[CENAS.length - 1];
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.filter = 'none'; ctx.globalAlpha = 1;
+  ctx.fillStyle = COR.ceu; ctx.fillRect(0, 0, W, H);
+  ctx.save(); cena.draw(ctx, t - cena.inicio); ctx.restore();
+  if (cena.draw !== cenaContinua) { desenhaLegenda(ctx, cena, t); desenhaTag(ctx); }
+  document.getElementById('relogio').textContent = t.toFixed(2) + ' s';
+}
+
+const pronto = Promise.all([
+  document.fonts.load('84px "Archivo Black"'),
+  document.fonts.load('58px "Special Elite"'),
+]).catch(() => {}).then(() => document.fonts.ready);
+
+window.renderFrame = renderFrame;
+window.DURACAO = DURACAO;
+window.FPS = FPS;
+window.pronto = pronto;
+
+const params = new URLSearchParams(location.search);
+if (params.has('render')) document.body.classList.add('render');
+let tocando = false, t0 = 0, base = 0;
+function loop(agora) {
+  if (!tocando) return;
+  const t = base + (agora - t0) / 1000;
+  if (t >= DURACAO) { tocando = false; renderFrame(DURACAO); playBtn.textContent = '▶ Play'; return; }
+  renderFrame(t); requestAnimationFrame(loop);
+}
+const playBtn = document.getElementById('play');
+let tAtual = parseFloat(params.get('t')) || 0;
+playBtn.onclick = () => {
+  if (tocando) { tocando = false; base += (performance.now() - t0) / 1000; playBtn.textContent = '▶ Play'; return; }
+  if (base >= DURACAO) base = 0;
+  tocando = true; t0 = performance.now(); playBtn.textContent = '❚❚ Pausar'; requestAnimationFrame(loop);
+};
+document.getElementById('reiniciar').onclick = () => { base = 0; t0 = performance.now(); renderFrame(0); };
+pronto.then(() => { base = tAtual; renderFrame(tAtual); });
+</script>
+</body>
+</html>
