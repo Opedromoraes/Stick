@@ -52,6 +52,9 @@ const CENAS = [
 
 const REGRA = { numero: 1, texto: 'Nunca olhe pro passageiro que sentar do seu lado.', vermelhas: ['Nunca', 'olhe'] };
 
+// Legendas com o tempo real de cada palavra da narração (ElevenLabs Speech to Text)
+const LEGENDAS = [{"palavras": [["Meia-noite", 0.5], ["e", 1.12], ["cinco.", 1.34], ["O", 2.28], ["último", 2.38], ["ônibus", 2.82], ["já", 3.22], ["tinha", 3.38], ["passado.", 3.62]], "fim": 4.62, "destaques": {"último": "pista"}}, {"palavras": [["Mas", 5.4], ["um", 5.68], ["chegou", 5.82], ["mesmo", 6.14], ["assim.", 6.38], ["Sem", 7.34], ["número", 7.54], ["no", 7.88], ["letreiro.", 8.0]], "fim": 8.94, "destaques": {"sem": "pista", "número": "pista", "letreiro": "pista"}}, {"palavras": [["Eu", 10.8], ["entrei.", 10.94], ["Sentei.", 11.9], ["Ninguém", 12.88], ["lá", 13.28], ["dentro", 13.44], ["se", 13.76], ["mexia.", 13.86]], "fim": 14.8, "destaques": {"ninguém": "pista"}}, {"palavras": [["Tinha", 17.3], ["um", 17.46], ["adesivo", 17.56], ["colado", 18.14], ["na", 18.5], ["janela.", 18.62], ["Regra", 19.48], ["número", 19.86], ["um.", 20.2]], "fim": 20.86, "destaques": {"adesivo": "pista", "regra": "pista"}}, {"palavras": [["Na", 24.71], ["parada", 24.85], ["seguinte,", 25.19], ["a", 25.85], ["luz", 25.95], ["apagou.", 26.15], ["Quando", 27.11], ["voltou,", 27.35], ["tinha", 28.09], ["alguém", 28.27], ["do", 28.63], ["meu", 28.71], ["lado.", 28.87]], "fim": 29.63, "destaques": {"apagou": "perigo", "alguém": "perigo"}}, {"palavras": [["E", 32.6], ["eu", 32.7], ["quase", 32.94], ["olhei.", 33.3]], "fim": 34.18, "destaques": {"olhei": "perigo"}}];
+
 const DURACAO = CENAS[CENAS.length - 1].fim;
 const FPS = 30;
 
@@ -531,44 +534,46 @@ function quebra(ctx, texto, larg) {
 }
 const normaliza = p => p.toLowerCase().replace(/[.,!?…:;"“”]/g, '');
 
-function desenhaLegenda(ctx, cena, t) {
-  if (!cena.legenda) return;
-  const pals = cena.legenda.split(' ');
-  const a = cena.inicio + 0.15, b = cena.fim - 0.5;
-  const dt = (b - a) / pals.length;
-  const i = Math.floor((t - a) / dt);
-  if (i < 0) return;
-  const atual = Math.min(i, pals.length - 1);
-  const POR = 5, grupo = Math.floor(atual / POR);
-  const vis = pals.slice(grupo * POR, atual + 1);
-  ctx.font = '84px "Archivo Black"'; ctx.textBaseline = 'middle';
-  const grupoTxt = pals.slice(grupo * POR, grupo * POR + POR);
-  // layout com o grupo inteiro pra palavras não pularem de lugar
-  const linhasPal = []; let lin = [], larg = 0; const MAX = 940, esp = ctx.measureText(' ').width;
-  for (const p of grupoTxt) {
-    const w = ctx.measureText(p.toUpperCase()).width;
+function desenhaLegenda(ctx, _cena, t) {
+  // Legenda sincronizada com a narração: cada palavra aparece quando é falada.
+  const L = LEGENDAS.find(l => t >= l.palavras[0][1] - 0.02 && t < l.fim);
+  if (!L) return;
+  // grupos de até 4 palavras, quebrando depois de pontuação
+  if (!L.grupos) {
+    L.grupos = []; let g = [];
+    L.palavras.forEach(([p], i) => { g.push(i); if (g.length === 4 || /[.,?!:…]$/.test(p)) { L.grupos.push(g); g = []; } });
+    if (g.length) L.grupos.push(g);
+  }
+  let atual = -1;
+  L.palavras.forEach(([, tp], i) => { if (tp <= t) atual = i; });
+  if (atual < 0) return;
+  const grupo = L.grupos.find(g => g.includes(atual));
+  ctx.font = '88px "Archivo Black"'; ctx.textBaseline = 'middle';
+  const esp = ctx.measureText(' ').width, MAX = 940;
+  const linhasPal = []; let lin = [], larg = 0;
+  for (const i of grupo) {
+    const w = ctx.measureText(L.palavras[i][0].toUpperCase()).width;
     if (lin.length && larg + esp + w > MAX) { linhasPal.push(lin); lin = []; larg = 0; }
-    lin.push(p); larg += (lin.length > 1 ? esp : 0) + w;
+    lin.push(i); larg += (lin.length > 1 ? esp : 0) + w;
   }
   linhasPal.push(lin);
-  let k = 0; const y0 = 470 - (linhasPal.length - 1) * 50;
+  const y0 = 470 - (linhasPal.length - 1) * 52;
   linhasPal.forEach((l, li) => {
-    const total = l.reduce((s, p, j) => s + ctx.measureText(p.toUpperCase()).width + (j ? esp : 0), 0);
+    const total = l.reduce((s, i, j) => s + ctx.measureText(L.palavras[i][0].toUpperCase()).width + (j ? esp : 0), 0);
     let x = 540 - total / 2;
-    for (const p of l) {
-      const P = p.toUpperCase(), w = ctx.measureText(P).width;
-      if (k < vis.length) {
-        const idx = grupo * POR + k;
-        const nasc = a + idx * dt, pop = 1 + 0.18 * (1 - faixa(t, nasc, nasc + 0.12));
-        const tipo = cena.destaques[normaliza(p)];
-        ctx.save(); ctx.translate(x + w / 2, y0 + li * 100); ctx.scale(pop, pop);
+    for (const i of l) {
+      const [p, tp] = L.palavras[i], P = p.toUpperCase(), w = ctx.measureText(P).width;
+      if (i <= atual) {
+        const pop = 1 + 0.2 * (1 - faixa(t, tp, tp + 0.1));
+        const tipo = L.destaques[normaliza(p)];
+        ctx.save(); ctx.translate(x + w / 2, y0 + li * 104); ctx.scale(pop, pop);
         ctx.textAlign = 'center';
         ctx.lineWidth = 16; ctx.strokeStyle = '#000'; ctx.lineJoin = 'round'; ctx.strokeText(P, 0, 0);
         ctx.fillStyle = tipo === 'perigo' ? COR.perigo : tipo === 'pista' ? COR.adesivo : '#FFFFFF';
         ctx.fillText(P, 0, 0);
         ctx.restore();
       }
-      x += w + esp; k++;
+      x += w + esp;
     }
   });
 }
