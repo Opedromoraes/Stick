@@ -20,9 +20,14 @@ Cada episódio revela uma regra do adesivo amarelo "AVISO AOS PASSAGEIROS".
 | 02 | O Passageiro do Lado | Mão no banco; olhos no retrovisor; Regra 2 | "Desce onde?" |
 | 03 | Ponto Final | Quase diz "Santa Tereza"; responde "ponto final"; todos viram a cabeça e agora têm olhos; Regra 3 | A luz fica vermelha |
 | 04 | Luz Vermelha | Finge dormir; passos e respiração; um passageiro some; Regra 4 no banco vazio | Ônibus para no nada; voz da mãe chama "Davi" |
-| 05 | A Voz Lá Fora | A "mãe" insiste; um passageiro novo desce e não volta; Davi percebe que a voz sabe coisas que só a mãe sabe | A porta não fecha |
-| 06 | O Lugar Vago | Uma senhora oferece o lugar dela na frente; Regra 5 | Ela sorri com dentes demais |
+| 05 | A Voz Lá Fora | A "mãe" chama (voz feminina); um passageiro desce e não volta; a voz fala do arroz doce que só a mãe sabia | A porta não fecha |
+| 06 | O Lugar Vago | O Passageiro alto para na frente da porta e ela fecha; uma senhora aparece no banco vazio e oferece o lugar; Regra 5 | "Não, obrigado" — ela sorri com dentes demais |
 | 07 | O Bilhete | Davi acha um bilhete escrito à mão por um passageiro antigo: "conta as paradas" | Faltam 3 paradas pro ponto final |
 | 08 | O Ponto Final | O motorista anuncia o fim; todos levantam ao mesmo tempo | O motorista vira e não tem rosto |
 | 09 | A Regra Escondida | Regra 6 descoberta no verso do adesivo; Davi entende que precisa não ser o último | Corrida pela porta |
 | 10 | Santa Tereza | Davi acorda no ponto de ônibus às 00:05... e o ônibus chega de novo, agora com o número dele no letreiro | Fim da temporada |
+
+## Vozes (ElevenLabs)
+- Davi (narração): Witalo - Young Male
+- Mãe (Ep. 05): Michele - Calm, Moderate and Warm — legenda azul-clara, com eco
+- Senhora (Ep. 06): Clarice Rodrigues — legenda lilás

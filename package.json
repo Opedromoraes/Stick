@@ -5,7 +5,9 @@
     "render:ep01": "node render.js ep01.html linha0_ep01.mp4",
     "render:ep02": "node render.js ep02.html linha0_ep02.mp4",
     "render:ep03": "node render.js ep03.html linha0_ep03.mp4",
-    "render:ep04": "node render.js ep04.html linha0_ep04.mp4"
+    "render:ep04": "node render.js ep04.html linha0_ep04.mp4",
+    "render:ep05": "node render.js ep05.html linha0_ep05.mp4",
+    "render:ep06": "node render.js ep06.html linha0_ep06.mp4"
   },
   "dependencies": {
     "puppeteer": "^23.11.1"
