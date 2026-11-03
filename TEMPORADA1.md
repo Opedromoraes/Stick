@@ -24,8 +24,8 @@ Cada episódio revela uma regra do adesivo amarelo "AVISO AOS PASSAGEIROS".
 | 06 | O Lugar Vago | O Passageiro alto para na frente da porta e ela fecha; uma senhora aparece no banco vazio e oferece o lugar; Regra 5 | "Não, obrigado" — ela sorri com dentes demais |
 | 07 | O Bilhete | Gancho no bilhete; a senhora vira pra frente; Davi acha o papel na fresta: "conta as paradas, são 13, na última não esteja no ônibus" | Faltam 3 — e a letra era a dele ("— D.") |
 | 08 | O Ponto Final | Gancho: todos levantam juntos; 11, 12, 13; placa PONTO FINAL; motorista: "todo mundo desce"; fila no corredor, o Passageiro espera o Davi | O motorista se vira e não tem rosto |
-| 09 | A Regra Escondida | Regra 6 descoberta no verso do adesivo; Davi entende que precisa não ser o último | Corrida pela porta |
-| 10 | Santa Tereza | Davi acorda no ponto de ônibus às 00:05... e o ônibus chega de novo, agora com o número dele no letreiro | Fim da temporada |
+| 09 | A Regra Escondida | Gancho no canto do adesivo descolando; o motorista sem rosto aponta pra janela; atrás do adesivo, a Regra 6; o corredor esvazia e o Passageiro espera o Davi levantar | "Então eu corri." |
+| 10 | Santa Tereza | Davi pula pela porta antes dela fechar; o Passageiro fica na janela (foi o último); Davi acorda no ponto às 00:05; um ônibus chega com SANTA TEREZA no letreiro | Fim da temporada · CTA "comenta Santa Tereza" pra T2 |
 
 ## Vozes (ElevenLabs)
 - Davi (narração): Witalo - Young Male
