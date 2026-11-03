@@ -22,8 +22,8 @@ Cada episódio revela uma regra do adesivo amarelo "AVISO AOS PASSAGEIROS".
 | 04 | Luz Vermelha | Finge dormir; passos e respiração; um passageiro some; Regra 4 no banco vazio | Ônibus para no nada; voz da mãe chama "Davi" |
 | 05 | A Voz Lá Fora | A "mãe" chama (voz feminina); um passageiro desce e não volta; a voz fala do arroz doce que só a mãe sabia | A porta não fecha |
 | 06 | O Lugar Vago | O Passageiro alto para na frente da porta e ela fecha; uma senhora aparece no banco vazio e oferece o lugar; Regra 5 | "Não, obrigado" — ela sorri com dentes demais |
-| 07 | O Bilhete | Davi acha um bilhete escrito à mão por um passageiro antigo: "conta as paradas" | Faltam 3 paradas pro ponto final |
-| 08 | O Ponto Final | O motorista anuncia o fim; todos levantam ao mesmo tempo | O motorista vira e não tem rosto |
+| 07 | O Bilhete | Gancho no bilhete; a senhora vira pra frente; Davi acha o papel na fresta: "conta as paradas, são 13, na última não esteja no ônibus" | Faltam 3 — e a letra era a dele ("— D.") |
+| 08 | O Ponto Final | Gancho: todos levantam juntos; 11, 12, 13; placa PONTO FINAL; motorista: "todo mundo desce"; fila no corredor, o Passageiro espera o Davi | O motorista se vira e não tem rosto |
 | 09 | A Regra Escondida | Regra 6 descoberta no verso do adesivo; Davi entende que precisa não ser o último | Corrida pela porta |
 | 10 | Santa Tereza | Davi acorda no ponto de ônibus às 00:05... e o ônibus chega de novo, agora com o número dele no letreiro | Fim da temporada |
 
@@ -31,3 +31,7 @@ Cada episódio revela uma regra do adesivo amarelo "AVISO AOS PASSAGEIROS".
 - Davi (narração): Witalo - Young Male
 - Mãe (Ep. 05): Michele - Calm, Moderate and Warm — legenda azul-clara, com eco
 - Senhora (Ep. 06): Clarice Rodrigues — legenda lilás
+- Motorista (Ep. 08): David - Deep, Gravelly — legenda salmão
+
+## Formato (a partir do Ep. 07)
+- Abre no gancho (2–3 s), recap curto depois. Antes os episódios abriam no "Anteriormente".
