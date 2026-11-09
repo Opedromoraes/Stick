@@ -1,0 +1,200 @@
+<!doctype html><meta charset="utf-8">
+<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script>
+const W = 1080, H = 1920;
+const ctx = document.getElementById('c').getContext('2d');
+const P = new URLSearchParams(location.search);
+const ESTILO = P.get('e') || 'A';
+
+// ---------- util ----------
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+function lin(pts, cor, lw) { ctx.strokeStyle = cor; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(...pts[0]); for (const p of pts.slice(1)) ctx.lineTo(...p); ctx.stroke(); }
+function circ(x, y, r, cor) { ctx.fillStyle = cor; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+function glow(x, y, r, cor, a) { const g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(${cor},${a})`); g.addColorStop(1, `rgba(${cor},0)`); ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
+let seed = 7; function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+
+// ---------- paletas ----------
+const PAL = {
+  A: { ceu1: '#0B1430', ceu2: '#1B2448', chao: '#15161C', cobertura: '#E9E6DF', faixa: '#D9363E', luz: '255,240,200', loja: '#2C3350', vitrine: '255,226,150', pele: '#F1D3B3', uniforme: '#D9363E', calca: '#2B3045', traco: '#1A1C26', figura: '#06070B', bomba: '#D9363E' },
+  B: { ceu1: '#130F2A', ceu2: '#2E1F4A', chao: '#1C1A26', cobertura: '#F2EEE6', faixa: '#1E9C6B', luz: '220,255,235', loja: '#2A2F3A', vitrine: '200,255,225', pele: '#E8B98F', uniforme: '#1E9C6B', calca: '#283042', traco: '#14121C', figura: '#050407', bomba: '#1E9C6B' },
+  C: { ceu1: '#000000', ceu2: '#0A0A0D', chao: '#08080A', cobertura: '#1A1A1E', faixa: '#E5484D', luz: '255,255,255', loja: '#0E0E12', vitrine: '255,255,255', pele: '#EDEDED', uniforme: '#EDEDED', calca: '#EDEDED', traco: '#EDEDED', figura: '#000000', bomba: '#E5484D' },
+};
+const C = PAL[ESTILO];
+
+// ---------- cenário: posto 24h ----------
+function cenario() {
+  const g = ctx.createLinearGradient(0, -230, 0, 1100); g.addColorStop(0, C.ceu1); g.addColorStop(1, C.ceu2);
+  ctx.fillStyle = g; ctx.fillRect(0, -230, W, H + 230);
+  if (ESTILO !== 'C') { for (let i = 0; i < 70; i++) circ(rnd() * W, rnd() * 600, rnd() * 1.6 + 0.4, 'rgba(255,255,255,0.5)'); }
+  // morros / prédios ao longe
+  ctx.fillStyle = ESTILO === 'C' ? '#050507' : 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.moveTo(0, 980); for (let x = 0; x <= W; x += 60) ctx.lineTo(x, 900 - Math.sin(x * 0.006) * 60 - (x % 180 === 0 ? 50 : 0)); ctx.lineTo(W, 1100); ctx.lineTo(0, 1100); ctx.fill();
+  // chão
+  ctx.fillStyle = C.chao; ctx.fillRect(0, 1060, W, H);
+  // estrada ao fundo com faixa
+  ctx.fillStyle = ESTILO === 'C' ? '#0C0C10' : '#101117'; ctx.fillRect(0, 1060, W, 70);
+  for (let x = 20; x < W; x += 140) { ctx.fillStyle = ESTILO === 'C' ? '#2A2A2E' : '#C9B26A'; ctx.fillRect(x, 1092, 70, 6); }
+  // loja de conveniência à direita
+  ctx.fillStyle = C.loja; ctx.fillRect(620, 760, 460, 330);
+  ctx.fillStyle = `rgba(${C.vitrine},${ESTILO === 'C' ? 0.9 : 0.75})`; ctx.fillRect(650, 860, 400, 200);
+  glow(850, 960, 420, C.vitrine, ESTILO === 'C' ? 0.12 : 0.22);
+  ctx.fillStyle = C.loja; for (let x = 650; x < 1050; x += 100) ctx.fillRect(x, 860, 6, 200);
+  // prateleiras dentro
+  if (ESTILO !== 'C') { ctx.fillStyle = 'rgba(0,0,0,0.18)'; for (let y = 900; y < 1050; y += 45) ctx.fillRect(660, y, 380, 8); }
+  ctx.fillStyle = C.faixa; ctx.fillRect(620, 770, 360, 60);
+  ctx.fillStyle = ESTILO === 'C' ? '#000' : '#fff'; ctx.font = '40px "Archivo Black"'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '34px "Archivo Black"'; ctx.fillText('CONVENIÊNCIA', 800, 802);
+  // cobertura do posto
+  ctx.fillStyle = C.cobertura; ctx.fillRect(-40, 560, 820, 110);
+  ctx.fillStyle = C.faixa; ctx.fillRect(-40, 640, 820, 30);
+  ctx.fillStyle = ESTILO === 'C' ? '#2A2A2E' : '#8A8F9C'; ctx.fillRect(130, 670, 26, 420); ctx.fillRect(560, 670, 26, 420);
+  // luzes da cobertura
+  for (const x of [80, 260, 440, 620]) { ctx.fillStyle = `rgba(${C.luz},1)`; ctx.fillRect(x, 668, 90, 8); }
+  const cone = ctx.createLinearGradient(0, 676, 0, 1300);
+  cone.addColorStop(0, `rgba(${C.luz},${ESTILO === 'C' ? 0.35 : 0.25})`); cone.addColorStop(1, `rgba(${C.luz},0)`);
+  ctx.fillStyle = cone; ctx.beginPath(); ctx.moveTo(-40, 676); ctx.lineTo(780, 676); ctx.lineTo(900, 1500); ctx.lineTo(-160, 1500); ctx.fill();
+  // placa POSTO 24H
+  ctx.fillStyle = ESTILO === 'C' ? '#111' : '#1D2233'; ctx.fillRect(250, 430, 300, 110);
+  ctx.fillStyle = ESTILO === 'C' ? '#E5484D' : '#FFD54A'; ctx.font = '62px "Archivo Black"'; ctx.fillText('24H', 400, 488);
+  glow(400, 485, 260, ESTILO === 'C' ? '229,72,77' : '255,213,74', 0.18);
+  // bombas
+  for (const [x, n] of [[230, 2], [470, 3]]) {
+    ctx.fillStyle = C.bomba; rr(x, 880, 110, 200, 14); ctx.fill();
+    ctx.fillStyle = ESTILO === 'C' ? '#000' : '#0F1220'; ctx.fillRect(x + 18, 895, 74, 40);
+    ctx.fillStyle = ESTILO === 'C' ? '#E5484D' : '#7CFFB2'; ctx.font = '26px "IBM Plex Mono"'; ctx.fillText('0,00', x + 55, 916);
+    ctx.fillStyle = '#fff'; ctx.font = '40px "Archivo Black"'; ctx.fillText(n, x + 55, 963);
+  }
+  // chão molhado com reflexo
+  if (ESTILO !== 'C') {
+    ctx.save(); ctx.globalAlpha = 0.15; ctx.translate(0, 2 * 1090); ctx.scale(1, -1);
+    ctx.fillStyle = `rgba(${C.vitrine},1)`; ctx.fillRect(650, 860, 400, 200); ctx.restore();
+  }
+}
+
+function chuva() {
+  ctx.strokeStyle = ESTILO === 'C' ? 'rgba(255,255,255,0.25)' : 'rgba(200,215,255,0.22)'; ctx.lineWidth = 2;
+  for (let i = 0; i < 260; i++) { const x = rnd() * W, y = rnd() * H, l = 30 + rnd() * 40; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 8, y + l); ctx.stroke(); }
+}
+
+// ---------- personagens ----------
+// Frentista (protagonista) — 3 versões de design
+function frentista(x, fy, s) {
+  ctx.save(); ctx.translate(x, fy); ctx.scale(s, s);
+  if (ESTILO === 'A') {
+    // stick melhorado: membros em traço, uniforme no tronco, rosto expressivo
+    const T = C.traco, L = '#E6E3DC';
+    lin([[0, -250], [0, -120]], L, 14);
+    // camisa uniforme
+    ctx.fillStyle = C.uniforme; rr(-48, -255, 96, 140, 26); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillRect(-48, -205, 96, 10);
+    lin([[-20, -115], [-34, 0]], L, 16); lin([[20, -115], [30, 0]], L, 16);
+    lin([[-34, 0], [-58, 0]], L, 16); lin([[30, 0], [54, 0]], L, 16);
+    lin([[-44, -240], [-80, -170], [-66, -110]], L, 14); lin([[44, -240], [86, -180], [104, -230]], L, 14); // braço levantado segurando lanterna
+    circ(-66, -108, 12, C.pele); circ(104, -232, 12, C.pele);
+    ctx.fillStyle = '#333'; ctx.fillRect(98, -270, 16, 40); // lanterna
+    // cabeça
+    circ(0, -320, 70, C.pele); lin([[0, -320], [0, -320]], T, 0);
+    ctx.strokeStyle = T; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, -320, 70, 0, Math.PI * 2); ctx.stroke();
+    // boné
+    ctx.fillStyle = C.uniforme; ctx.beginPath(); ctx.arc(0, -340, 72, Math.PI, 0); ctx.fill(); ctx.fillRect(0, -346, 100, 16);
+    // olhos arregalados
+    circ(-24, -318, 15, '#fff'); circ(24, -318, 15, '#fff'); circ(-20, -318, 7, T); circ(28, -318, 7, T);
+    lin([[-40, -342], [-12, -338]], T, 5); lin([[12, -338], [40, -344]], T, 5);
+    ctx.fillStyle = T; ctx.beginPath(); ctx.ellipse(2, -280, 10, 14, 0, 0, Math.PI * 2); ctx.fill();
+    // gota de suor
+    ctx.fillStyle = '#9FD3FF'; ctx.beginPath(); ctx.moveTo(58, -350); ctx.quadraticCurveTo(70, -326, 58, -318); ctx.quadraticCurveTo(46, -326, 58, -350); ctx.fill();
+  } else if (ESTILO === 'B') {
+    // bonequinho "cheio": cabeça grande, corpo preenchido, contorno grosso
+    const T = C.traco, O = 7;
+    ctx.lineWidth = O; ctx.strokeStyle = T;
+    // pernas
+    ctx.fillStyle = C.calca; rr(-40, -120, 34, 120, 14); ctx.fill(); ctx.stroke(); rr(6, -120, 34, 120, 14); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#1A1A1A'; rr(-48, -14, 46, 20, 8); ctx.fill(); rr(4, -14, 46, 20, 8); ctx.fill();
+    // corpo
+    ctx.fillStyle = C.uniforme; rr(-62, -270, 124, 160, 34); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#F5F5F5'; ctx.fillRect(-30, -240, 22, 14);
+    // braços
+    ctx.fillStyle = C.uniforme; ctx.save(); ctx.translate(-58, -250); ctx.rotate(0.35); rr(-18, 0, 36, 110, 16); ctx.fill(); ctx.stroke(); ctx.restore();
+    ctx.save(); ctx.translate(58, -250); ctx.rotate(-2.3); rr(-18, 0, 36, 100, 16); ctx.fill(); ctx.stroke(); ctx.restore();
+    circ(-98, -150, 20, C.pele); ctx.stroke();
+    ctx.fillStyle = '#333'; ctx.fillRect(118, -360, 22, 54); circ(129, -330, 22, C.pele); ctx.beginPath(); ctx.arc(129, -330, 22, 0, 7); ctx.stroke();
+    // cabeça grande
+    ctx.fillStyle = C.pele; ctx.beginPath(); ctx.ellipse(0, -370, 105, 98, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    // cabelo + boné
+    ctx.fillStyle = C.uniforme; ctx.beginPath(); ctx.ellipse(0, -410, 108, 70, 0, Math.PI, 0); ctx.fill(); ctx.stroke();
+    rr(-10, -420, 140, 22, 10); ctx.fill(); ctx.stroke();
+    // rosto
+    circ(-36, -365, 24, '#fff'); circ(36, -365, 24, '#fff'); ctx.beginPath(); ctx.arc(-36, -365, 24, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(36, -365, 24, 0, 7); ctx.stroke();
+    circ(-28, -362, 10, T); circ(44, -362, 10, T); circ(-25, -366, 3, '#fff'); circ(47, -366, 3, '#fff');
+    lin([[-62, -402], [-18, -396]], T, 7); lin([[18, -396], [62, -404]], T, 7);
+    ctx.fillStyle = '#5A2A2A'; ctx.beginPath(); ctx.ellipse(4, -310, 16, 20, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(230,120,120,0.35)'; circ(-66, -330, 14, 'rgba(230,120,120,0.35)'); circ(70, -330, 14, 'rgba(230,120,120,0.35)');
+    ctx.fillStyle = '#9FD3FF'; ctx.beginPath(); ctx.moveTo(92, -420); ctx.quadraticCurveTo(108, -390, 92, -380); ctx.quadraticCurveTo(76, -390, 92, -420); ctx.fill();
+  } else {
+    // noir: silhueta branca recortada, sem cor, só os olhos
+    const T = '#EDEDED';
+    lin([[0, -250], [0, -120]], T, 16); lin([[0, -120], [-34, 0]], T, 16); lin([[0, -120], [30, 0]], T, 16);
+    lin([[0, -230], [-60, -130]], T, 14); lin([[0, -230], [90, -230]], T, 14);
+    ctx.fillStyle = '#EDEDED'; ctx.fillRect(90, -246, 30, 32);
+    circ(0, -310, 62, T);
+    circ(-20, -310, 11, '#000'); circ(22, -310, 11, '#000');
+    // feixe da lanterna
+    const fx = ctx.createLinearGradient(120, -230, 700, -320);
+    fx.addColorStop(0, 'rgba(255,255,255,0.55)'); fx.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = fx; ctx.beginPath(); ctx.moveTo(120, -240); ctx.lineTo(760, -420); ctx.lineTo(760, -160); ctx.lineTo(120, -218); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// Carro sem farol na bomba 3 + a figura alta
+function carroEFigura() {
+  // carro escuro, sem farol
+  const cx = 360, cy = 1150;
+  ctx.fillStyle = ESTILO === 'C' ? '#000' : '#07080C';
+  rr(cx, cy - 90, 420, 110, 30); ctx.fill(); rr(cx + 80, cy - 160, 250, 90, 40); ctx.fill();
+  if (ESTILO === 'C') { ctx.strokeStyle = '#E5484D'; ctx.lineWidth = 4; rr(cx, cy - 90, 420, 110, 30); ctx.stroke(); rr(cx + 80, cy - 160, 250, 90, 40); ctx.stroke(); }
+  ctx.fillStyle = ESTILO === 'C' ? '#111' : '#151926'; rr(cx + 100, cy - 148, 100, 64, 12); ctx.fill(); rr(cx + 215, cy - 148, 100, 64, 12); ctx.fill();
+  circ(cx + 90, cy + 24, 42, '#000'); circ(cx + 330, cy + 24, 42, '#000');
+  // dois pontinhos de olhos no vidro do carro
+  circ(cx + 140, cy - 118, 6, ESTILO === 'C' ? '#E5484D' : '#FFF4C2'); circ(cx + 168, cy - 118, 6, ESTILO === 'C' ? '#E5484D' : '#FFF4C2');
+  glow(cx + 154, cy - 118, 40, ESTILO === 'C' ? '229,72,77' : '255,244,194', 0.3);
+  // figura alta na beira da estrada, fora da luz
+  const fx = 1030, fy = 1110;
+  ctx.fillStyle = C.figura;
+  ctx.beginPath(); ctx.ellipse(fx, fy - 330, 26, 40, 0, 0, Math.PI * 2); ctx.fill();
+  lin([[fx, fy - 290], [fx, fy - 120]], C.figura, 14); lin([[fx, fy - 120], [fx - 16, fy]], C.figura, 12); lin([[fx, fy - 120], [fx + 14, fy]], C.figura, 12);
+  lin([[fx, fy - 270], [fx - 26, fy - 100]], C.figura, 10); lin([[fx, fy - 270], [fx + 24, fy - 96]], C.figura, 10);
+  if (ESTILO === 'C') { ctx.strokeStyle = '#E5484D'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(fx, fy - 330, 26, 40, 0, 0, Math.PI * 2); ctx.stroke(); }
+}
+
+function vinheta(a) { const g = ctx.createRadialGradient(540, 1000, 300, 540, 1000, 1150); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${a})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+function grao(a) { const id = ctx.getImageData(0, 0, W, H), d = id.data; for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * a; d[i] += n; d[i + 1] += n; d[i + 2] += n; } ctx.putImageData(id, 0, 0); }
+
+// legenda no estilo da série
+function legenda() {
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '40px "Archivo Black"'; ctx.fillStyle = ESTILO === 'C' ? '#E5484D' : '#FFD54A';
+  ctx.fillText('REGRA Nº 1', 540, 250);
+  ctx.font = '62px "Archivo Black"'; ctx.lineWidth = 12; ctx.strokeStyle = '#000'; ctx.lineJoin = 'round';
+  const linhas = [['SE UM CARRO ', '#fff'], ['SEM FAROL', ESTILO === 'C' ? '#E5484D' : '#FF5A5F']];
+  ctx.strokeText('SE UM CARRO SEM FAROL', 540, 330);
+  ctx.fillStyle = '#fff'; ctx.fillText('SE UM CARRO SEM FAROL', 540, 330);
+  ctx.strokeText('PARAR NA BOMBA 3...', 540, 405); ctx.fillText('PARAR NA BOMBA 3...', 540, 405);
+  ctx.font = '30px "Archivo Black"'; ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.fillText('REGRAS DA MADRUGADA · POSTO 24H', 540, 1820);
+}
+
+document.fonts.load('40px "Archivo Black"').then(() => document.fonts.ready).then(() => {
+  ctx.fillStyle = C.ceu1; ctx.fillRect(0, 0, W, H); ctx.save(); ctx.translate(0, 230);
+  cenario();
+  carroEFigura();
+  ctx.restore(); ctx.fillStyle = C.chao; ctx.fillRect(0, 1700, W, 0);
+  frentista(ESTILO === 'B' ? 220 : 210, 1790, ESTILO === 'B' ? 1.25 : 1.45);
+  chuva();
+  vinheta(ESTILO === 'C' ? 0.85 : 0.6);
+  if (ESTILO === 'C') grao(26);
+  legenda();
+  window.pronto = true;
+});
+</script>
