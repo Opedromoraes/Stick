@@ -1,7 +1,7 @@
 import json, sys
 D = '/tmp/claude-0/-home-claude/2fe2cedc-b205-5850-a0d8-7f4fa33ecd38/scratchpad/rm'
 ep = sys.argv[1]
-TL = open(f'{D}/tl.json').read()
+TL = open(f'{D}/tl_{ep}.json').read()
 html = f'''<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Regras da Madrugada · Ep. {ep}</title>
 <style>html,body{{margin:0;background:#000}}canvas{{display:block;max-height:100vh;margin:auto}}</style>
 <canvas id="tela" width="1080" height="1920"></canvas>
