@@ -141,7 +141,7 @@ function boca(x, y, tipo, k, T = COR.T) {
 // Frentista (protagonista)
 // o: {ox, oy, aberto, boca, fala, bE, bD (ângulos dos braços em rad, 0=pra baixo), segura, suor, treme, t, passo, vira}
 function frentista(x, fy, s, o = {}) {
-  const T = COR.T, t = o.t ?? 0;
+  const T = COR.T, t = o.t ?? 0, UNI = o.cor ?? COR.verde;
   ctx.save(); ctx.translate(x, fy); ctx.scale(s, s);
   if (o.treme) treme(o.treme, t);
   ctx.lineWidth = 7; ctx.strokeStyle = T;
@@ -152,12 +152,12 @@ function frentista(x, fy, s, o = {}) {
     ctx.fillStyle = '#1A1A1A'; rr(-25, 106, 46, 20, 8); ctx.fill(); ctx.restore();
   }
   // corpo
-  ctx.fillStyle = COR.verde; rr(-62, -270, 124, 160, 34); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = UNI; rr(-62, -270, 124, 160, 34); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#F5F5F5'; ctx.fillRect(-30, -240, 22, 14);
   ctx.fillStyle = COR.amarelo; ctx.fillRect(-62, -150, 124, 10);
   // braços
   const braco = (sx, ang) => {
-    ctx.save(); ctx.translate(sx * 58, -250); ctx.rotate(ang); ctx.fillStyle = COR.verde; rr(-18, 0, 36, 108, 16); ctx.fill(); ctx.stroke();
+    ctx.save(); ctx.translate(sx * 58, -250); ctx.rotate(ang); ctx.fillStyle = UNI; rr(-18, 0, 36, 108, 16); ctx.fill(); ctx.stroke();
     ctx.fillStyle = COR.pele; ctx.beginPath(); ctx.arc(0, 118, 20, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore();
     return [sx * 58 - Math.sin(ang) * 118, -250 + Math.cos(ang) * 118];
   };
@@ -166,7 +166,7 @@ function frentista(x, fy, s, o = {}) {
   // cabeça
   ctx.fillStyle = COR.pele; ctx.beginPath(); ctx.ellipse(0, -370, 105, 98, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   // boné
-  ctx.fillStyle = COR.verde; ctx.beginPath(); ctx.ellipse(0, -410, 108, 70, 0, Math.PI, 0); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = UNI; ctx.beginPath(); ctx.ellipse(0, -410, 108, 70, 0, Math.PI, 0); ctx.fill(); ctx.stroke();
   const vira = o.vira ?? 1;
   rr(vira > 0 ? -10 : -130, -420, 140, 22, 10); ctx.fill(); ctx.stroke();
   // rosto
@@ -189,7 +189,7 @@ function gerente(x, fy, s, o = {}) {
   ctx.lineWidth = 7; ctx.strokeStyle = T;
   for (const sx of [-1, 1]) { ctx.fillStyle = '#3B3A44'; rr(sx * 23 - 17, -120, 34, 120, 14); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#1A1A1A'; rr(sx * 23 - 25, -14, 46, 20, 8); ctx.fill(); }
   ctx.fillStyle = '#F2F2F2'; rr(-70, -275, 140, 165, 36); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = COR.verdeE; rr(-70, -260, 46, 150, 18); ctx.fill(); rr(24, -260, 46, 150, 18); ctx.fill();
+  ctx.fillStyle = o.colete ?? COR.verdeE; rr(-70, -260, 46, 150, 18); ctx.fill(); rr(24, -260, 46, 150, 18); ctx.fill();
   ctx.fillStyle = '#B33A3A'; ctx.beginPath(); ctx.moveTo(-10, -270); ctx.lineTo(10, -270); ctx.lineTo(14, -170); ctx.lineTo(0, -150); ctx.lineTo(-14, -170); ctx.fill();
   const braco = (sx, ang) => { ctx.save(); ctx.translate(sx * 64, -255); ctx.rotate(ang); ctx.fillStyle = '#F2F2F2'; rr(-18, 0, 36, 108, 16); ctx.fill(); ctx.stroke(); ctx.fillStyle = pele; ctx.beginPath(); ctx.arc(0, 118, 20, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore(); return [sx * 64 - Math.sin(ang) * 118, -255 + Math.cos(ang) * 118]; };
   braco(-1, o.bE ?? 0.2); const mD = braco(1, o.bD ?? -0.2);
@@ -219,7 +219,7 @@ const REGRAS = [
   ['3. Nunca saia de baixo da luz.'],
 ];
 // vis: [k1,k2,k3] 0..1 (quanto de cada regra está escrito); dest: índice destacado
-function papelRegras(cx, cy, esc, rot, vis, dest = -1, titulo = 'TURNO DA NOITE') {
+function papelRegras(cx, cy, esc, rot, vis, dest = -1, titulo = 'TURNO DA NOITE', lista = REGRAS) {
   ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot); ctx.scale(esc, esc);
   ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 40; ctx.fillStyle = COR.papel; ctx.fillRect(-380, -470, 760, 940); ctx.shadowColor = 'transparent';
   ctx.strokeStyle = 'rgba(80,120,200,0.25)'; ctx.lineWidth = 3; for (let y = -330; y < 440; y += 70) { ctx.beginPath(); ctx.moveTo(-350, y); ctx.lineTo(350, y); ctx.stroke(); }
@@ -227,7 +227,7 @@ function papelRegras(cx, cy, esc, rot, vis, dest = -1, titulo = 'TURNO DA NOITE'
   ctx.fillStyle = '#1B2240'; ctx.font = '80px "Caveat"'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillText(titulo, -260, -350);
   let y = -215;
-  REGRAS.forEach((r, i) => {
+  lista.forEach((r, i) => {
     const k = vis[i] ?? 0;
     r.forEach((linha, j) => {
       const n = Math.floor(linha.length * clamp(k * r.length - j));
@@ -291,7 +291,7 @@ function desenhaLegenda(t, y = 430) {
 }
 function tag() {
   ctx.font = '30px "Archivo Black"'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  const s = 'REGRAS DA MADRUGADA · POSTO 24H', w = ctx.measureText(s).width;
+  const s = (typeof TAGTXT !== 'undefined') ? TAGTXT : 'REGRAS DA MADRUGADA · POSTO 24H', w = ctx.measureText(s).width;
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; rr(56, 150, w + 44, 56, 10); ctx.fill();
   ctx.fillStyle = COR.verde; ctx.fillRect(56, 150, 8, 56);
   ctx.fillStyle = '#fff'; ctx.fillText(s, 80, 179);
