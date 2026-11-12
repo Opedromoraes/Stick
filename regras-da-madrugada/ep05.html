@@ -1,0 +1,496 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Regras da Madrugada · Ep. 05</title>
+<style>html,body{margin:0;background:#000}canvas{display:block;max-height:100vh;margin:auto}</style>
+<canvas id="tela" width="1080" height="1920"></canvas>
+<script>
+// ============================================================
+// REGRAS DA MADRUGADA — motor visual (estilo B: bonequinho cartoon)
+// ============================================================
+const W = 1080, H = 1920, FPS = 30;
+const tela = document.getElementById('tela');
+const ctx = tela.getContext('2d');
+
+// ---------- util ----------
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, k) => a + (b - a) * k;
+const suave = k => k * k * (3 - 2 * k);
+const faixa = (t, a, b) => suave(clamp((t - a) / (b - a)));
+const ruido = t => Math.sin(t * 1.7) * 0.5 + Math.sin(t * 3.1 + 1.3) * 0.3 + Math.sin(t * 7.3 + 2.1) * 0.2;
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+function lin(pts, cor, lw) { ctx.strokeStyle = cor; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(...pts[0]); for (const p of pts.slice(1)) ctx.lineTo(...p); ctx.stroke(); }
+function circ(x, y, r, cor) { ctx.fillStyle = cor; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+function glow(x, y, r, cor, a) { if (a <= 0) return; const g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(${cor},${a})`); g.addColorStop(1, `rgba(${cor},0)`); ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
+function hash(i) { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
+function vinheta(a, cor = '0,0,0') { const g = ctx.createRadialGradient(540, 1000, 320, 540, 1000, 1180); g.addColorStop(0, `rgba(${cor},0)`); g.addColorStop(1, `rgba(${cor},${a})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+function camera(cx, cy, z, fn) { ctx.save(); ctx.translate(540, 960); ctx.scale(z, z); ctx.translate(-cx, -cy); fn(); ctx.restore(); }
+function treme(a, t) { ctx.translate(ruido(t * 23) * a, ruido(t * 19 + 5) * a); }
+
+const COR = {
+  ceu1: '#130F2A', ceu2: '#2E1F4A', chao: '#1C1A26', cobertura: '#F2EEE6', verde: '#1E9C6B', verdeE: '#157552',
+  luz: '220,255,235', loja: '#2A2F3A', vitrine: '200,255,225', pele: '#E8B98F', peleG: '#D9A67C', calca: '#283042',
+  T: '#14121C', perigo: '#FF5A5F', amarelo: '#FFD54A', carro: '#FF9A8F', gerente: '#B8F2C9', papel: '#F3EBD3',
+};
+
+// ---------- chuva ----------
+function chuva(t, dens = 220, a = 0.22) {
+  ctx.strokeStyle = `rgba(200,215,255,${a})`; ctx.lineWidth = 2;
+  for (let i = 0; i < dens; i++) {
+    const x = hash(i) * (W + 200) - 100, v = 1500 + hash(i + 9) * 900, l = 30 + hash(i + 3) * 40;
+    const y = ((hash(i + 5) * H + t * v) % (H + 100)) - 50;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 9, y + l); ctx.stroke();
+  }
+}
+
+// ---------- cenário: posto 24h (coordenadas de mundo = tela no plano aberto) ----------
+// o = { t, dia(0..1), carro:{x, olhos, vidro}, figura:{a, acena}, relogio }
+function posto(o = {}) {
+  const t = o.t ?? 0, dia = o.dia ?? 0;
+  const g = ctx.createLinearGradient(0, 0, 0, 1330);
+  g.addColorStop(0, dia ? '#F6B37A' : COR.ceu1); g.addColorStop(1, dia ? '#FBE3B8' : COR.ceu2);
+  ctx.fillStyle = g; ctx.fillRect(-600, -600, W + 1200, 1930 + 600);
+  if (!dia) for (let i = 0; i < 70; i++) circ(hash(i + 40) * W, hash(i + 80) * 830, hash(i) * 1.6 + 0.4, 'rgba(255,255,255,0.45)');
+  else { glow(820, 1060, 520, '255,220,160', 0.8); circ(820, 1090, 90, '#FFE7A8'); }
+  ctx.fillStyle = dia ? 'rgba(120,70,60,0.45)' : 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.moveTo(-600, 1210); for (let x = -600; x <= W + 600; x += 60) ctx.lineTo(x, 1130 - Math.sin(x * 0.006) * 60 - (((x % 180) + 180) % 180 === 0 ? 50 : 0)); ctx.lineTo(W + 600, 1330); ctx.lineTo(-600, 1330); ctx.fill();
+  ctx.fillStyle = dia ? '#5B5560' : COR.chao; ctx.fillRect(-600, 1290, W + 1200, 2000);
+  ctx.fillStyle = dia ? '#45404A' : '#101117'; ctx.fillRect(-600, 1290, W + 1200, 70);
+  for (let x = -580; x < W + 600; x += 140) { ctx.fillStyle = '#C9B26A'; ctx.fillRect(x, 1322, 70, 6); }
+  // loja
+  ctx.fillStyle = COR.loja; ctx.fillRect(620, 990, 600, 330);
+  ctx.fillStyle = `rgba(${COR.vitrine},${dia ? 0.35 : 0.75})`; ctx.fillRect(650, 1090, 540, 200);
+  glow(850, 1190, 420, COR.vitrine, dia ? 0 : 0.22);
+  ctx.fillStyle = COR.loja; for (let x = 650; x < 1190; x += 100) ctx.fillRect(x, 1090, 6, 200);
+  ctx.fillStyle = 'rgba(0,0,0,0.18)'; for (let y = 1130; y < 1280; y += 45) ctx.fillRect(660, y, 520, 8);
+  ctx.fillStyle = COR.verde; ctx.fillRect(620, 1000, 360, 60);
+  ctx.fillStyle = '#fff'; ctx.font = '34px "Archivo Black"'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('CONVENIÊNCIA', 800, 1032);
+  // cobertura
+  ctx.fillStyle = COR.cobertura; ctx.fillRect(-600, 790, 1380, 110);
+  ctx.fillStyle = COR.verde; ctx.fillRect(-600, 870, 1380, 30);
+  ctx.fillStyle = '#8A8F9C'; for (const x of [-290, 130, 560]) ctx.fillRect(x, 900, 26, 420);
+  if (!dia) {
+    for (const x of [-340, -160, 80, 260, 440, 620]) { ctx.fillStyle = `rgba(${COR.luz},1)`; ctx.fillRect(x, 898, 90, 8); }
+    const cone = ctx.createLinearGradient(0, 906, 0, 1530);
+    cone.addColorStop(0, `rgba(${COR.luz},0.25)`); cone.addColorStop(1, `rgba(${COR.luz},0)`);
+    ctx.fillStyle = cone; ctx.beginPath(); ctx.moveTo(-600, 906); ctx.lineTo(780, 906); ctx.lineTo(900, 1730); ctx.lineTo(-700, 1730); ctx.fill();
+    // borda da luz no chão (a linha que não se pode cruzar)
+    ctx.fillStyle = `rgba(${COR.luz},0.10)`; ctx.beginPath(); ctx.moveTo(-700, 1380); ctx.lineTo(860, 1380); ctx.lineTo(980, 2400); ctx.lineTo(-700, 2400); ctx.fill();
+  }
+  // placa 24H
+  ctx.fillStyle = '#1D2233'; ctx.fillRect(250, 660, 300, 110);
+  ctx.fillStyle = COR.amarelo; ctx.font = '62px "Archivo Black"'; ctx.fillText('24H', 400, 718);
+  if (!dia) glow(400, 715, 260, '255,213,74', 0.18);
+  // bombas
+  for (const [x, n] of [[-10, 1], [230, 2], [470, 3]]) {
+    ctx.fillStyle = COR.verde; rr(x, 1110, 110, 200, 14); ctx.fill();
+    ctx.fillStyle = '#0F1220'; ctx.fillRect(x + 18, 1125, 74, 40);
+    ctx.fillStyle = '#7CFFB2'; ctx.font = '26px "IBM Plex Mono"'; ctx.fillText('0,00', x + 55, 1146);
+    ctx.fillStyle = '#fff'; ctx.font = '40px "Archivo Black"'; ctx.fillText(n, x + 55, 1193);
+  }
+  if (o.carro) carroSemFarol(o.carro.x ?? 360, o.carro, t);
+  if (o.figura) figuraEstrada(t, o.figura);
+  if (!dia) { ctx.save(); ctx.globalAlpha = 0.13; ctx.translate(0, 2 * 1320); ctx.scale(1, -1); ctx.fillStyle = `rgba(${COR.vitrine},1)`; ctx.fillRect(650, 1090, 540, 200); ctx.restore(); }
+}
+
+function carroSemFarol(cx, o, t) {
+  const cy = 1380;
+  ctx.fillStyle = '#07080C';
+  rr(cx, cy - 90, 420, 110, 30); ctx.fill(); rr(cx + 80, cy - 160, 250, 90, 40); ctx.fill();
+  ctx.fillStyle = '#151926'; rr(cx + 100, cy - 148, 100, 64, 12); ctx.fill(); rr(cx + 215, cy - 148, 100, 64, 12); ctx.fill();
+  const giro = (o.roda ?? 0);
+  for (const rx of [cx + 90, cx + 330]) { circ(rx, cy + 24, 42, '#000'); ctx.strokeStyle = '#2A2D38'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(rx + Math.cos(giro) * 26, cy + 24 + Math.sin(giro) * 26); ctx.lineTo(rx - Math.cos(giro) * 26, cy + 24 - Math.sin(giro) * 26); ctx.stroke(); }
+  const ol = o.olhos ?? 1;
+  if (ol > 0) {
+    const pis = (Math.sin(t * 0.9) > 0.97) ? 0.1 : 1;
+    ctx.globalAlpha = ol; ctx.fillStyle = '#FFF4C2';
+    ctx.beginPath(); ctx.ellipse(cx + 140, cy - 118, 6, 6 * pis, 0, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx + 168, cy - 118, 6, 6 * pis, 0, 0, 7); ctx.fill();
+    glow(cx + 154, cy - 118, 40, '255,244,194', 0.3 * ol); ctx.globalAlpha = 1;
+  }
+}
+
+// figura na beira da estrada (o "gerente" no escuro)
+function figuraEstrada(t, o) {
+  const fx = o.x ?? 1030, fy = o.fy ?? 1340, s = o.s ?? 1, a = o.a ?? 1;
+  ctx.save(); ctx.globalAlpha = a; ctx.translate(fx, fy); ctx.scale(s, s);
+  const C = '#050407';
+  ctx.fillStyle = C;
+  ctx.beginPath(); ctx.ellipse(0, -330, 30, 34, 0, 0, Math.PI * 2); ctx.fill();
+  rr(-26, -298, 52, 150, 18); ctx.fill();
+  lin([[-12, -150], [-16, 0]], C, 14); lin([[12, -150], [14, 0]], C, 14);
+  lin([[-22, -285], [-34, -170]], C, 11);
+  const ac = o.acena ?? 0, ang = -2.4 + Math.sin(t * 6) * 0.45 * ac;
+  lin([[22, -285], [22 + Math.cos(ang) * 70, -285 + Math.sin(ang) * 70], [22 + Math.cos(ang) * 70 + Math.cos(ang - 0.3) * 60, -285 + Math.sin(ang) * 70 + Math.sin(ang - 0.3) * 60]], C, 11);
+  if (o.sorriso) { ctx.strokeStyle = '#EDE6D6'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, -330, 18 * o.sorriso, 0.2, Math.PI - 0.2); ctx.stroke(); }
+  ctx.restore();
+}
+
+// ---------- personagens ----------
+function olhos(ex, ey, r, ox, oy, aberto = 1, T = COR.T) {
+  for (const sx of [-1, 1]) {
+    const x = ex + sx * r * 1.5;
+    ctx.save(); ctx.beginPath(); ctx.ellipse(x, ey, r, r * Math.max(0.08, aberto), 0, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 7; ctx.strokeStyle = T; ctx.stroke(); ctx.clip();
+    circ(x + ox * r * 0.45, ey + oy * r * 0.4, r * 0.42, T); circ(x + ox * r * 0.45 + r * 0.14, ey + oy * r * 0.4 - r * 0.16, r * 0.13, '#fff');
+    ctx.restore();
+  }
+}
+function boca(x, y, tipo, k, T = COR.T) {
+  ctx.lineWidth = 7; ctx.strokeStyle = T;
+  if (tipo === 'medo') { ctx.fillStyle = '#5A2A2A'; ctx.beginPath(); ctx.ellipse(x, y, 16, 20 + 4 * k, 0, 0, 7); ctx.fill(); ctx.stroke(); }
+  else if (tipo === 'fala') { const h = 4 + 16 * k; ctx.fillStyle = '#5A2A2A'; ctx.beginPath(); ctx.ellipse(x, y, 20, h, 0, 0, 7); ctx.fill(); ctx.stroke(); }
+  else if (tipo === 'nervoso') { lin([[x - 24, y], [x - 12, y - 6], [x, y], [x + 12, y - 6], [x + 24, y]], T, 6); }
+  else if (tipo === 'sorri') { ctx.beginPath(); ctx.arc(x, y - 12, 26, 0.3, Math.PI - 0.3); ctx.stroke(); }
+  else { lin([[x - 18, y], [x + 18, y]], T, 6); }
+}
+
+// Frentista (protagonista)
+// o: {ox, oy, aberto, boca, fala, bE, bD (ângulos dos braços em rad, 0=pra baixo), segura, suor, treme, t, passo, vira}
+function frentista(x, fy, s, o = {}) {
+  const T = COR.T, t = o.t ?? 0, UNI = o.cor ?? COR.verde;
+  ctx.save(); ctx.translate(x, fy); ctx.scale(s, s);
+  if (o.treme) treme(o.treme, t);
+  ctx.lineWidth = 7; ctx.strokeStyle = T;
+  // pernas (passo)
+  const p = o.passo != null ? Math.sin(o.passo) * 0.3 : 0;
+  for (const [sx, k] of [[-1, p], [1, -p]]) {
+    ctx.save(); ctx.translate(sx * 23, -120); ctx.rotate(k); ctx.fillStyle = COR.calca; rr(-17, 0, 34, 120, 14); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#1A1A1A'; rr(-25, 106, 46, 20, 8); ctx.fill(); ctx.restore();
+  }
+  // corpo
+  ctx.fillStyle = UNI; rr(-62, -270, 124, 160, 34); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#F5F5F5'; ctx.fillRect(-30, -240, 22, 14);
+  ctx.fillStyle = COR.amarelo; ctx.fillRect(-62, -150, 124, 10);
+  // braços
+  const braco = (sx, ang) => {
+    ctx.save(); ctx.translate(sx * 58, -250); ctx.rotate(ang); ctx.fillStyle = UNI; rr(-18, 0, 36, 108, 16); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = COR.pele; ctx.beginPath(); ctx.arc(0, 118, 20, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore();
+    return [sx * 58 - Math.sin(ang) * 118, -250 + Math.cos(ang) * 118];
+  };
+  const mE = braco(-1, o.bE ?? 0.25), mD = braco(1, o.bD ?? -0.25);
+  if (o.segura === 'papel') { ctx.save(); ctx.translate(mD[0] - 10, mD[1] - 30); ctx.rotate(-0.15); ctx.fillStyle = COR.papel; ctx.fillRect(-35, -45, 70, 90); ctx.lineWidth = 4; ctx.strokeRect(-35, -45, 70, 90); ctx.fillStyle = '#9A9080'; for (let i = 0; i < 4; i++) ctx.fillRect(-24, -30 + i * 18, 48, 4); ctx.restore(); }
+  // cabeça
+  ctx.fillStyle = COR.pele; ctx.beginPath(); ctx.ellipse(0, -370, 105, 98, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // boné
+  ctx.fillStyle = UNI; ctx.beginPath(); ctx.ellipse(0, -410, 108, 70, 0, Math.PI, 0); ctx.fill(); ctx.stroke();
+  const vira = o.vira ?? 1;
+  rr(vira > 0 ? -10 : -130, -420, 140, 22, 10); ctx.fill(); ctx.stroke();
+  // rosto
+  const ab = o.aberto ?? 1;
+  const pisca = (Math.abs(((t + (o.fase ?? 0)) % 3.7) - 0.1) < 0.08) ? 0.1 : 1;
+  olhos(0, -365, 24, o.ox ?? 0, o.oy ?? 0, ab * pisca, T);
+  const sob = o.sob ?? 0; // sobrancelha: 1 = medo (sobe no meio)
+  lin([[-62, -400 + sob * 4], [-18, -404 - sob * 14]], T, 7); lin([[18, -404 - sob * 14], [62, -400 + sob * 4]], T, 7);
+  boca(4, -310, o.boca ?? 'reta', o.fala ?? 0, T);
+  circ(-66, -330, 14, 'rgba(230,120,120,0.35)'); circ(70, -330, 14, 'rgba(230,120,120,0.35)');
+  if (o.suor) { ctx.fillStyle = '#9FD3FF'; const sy = ((t * 0.6) % 1) * 30; ctx.beginPath(); ctx.moveTo(92, -420 + sy); ctx.quadraticCurveTo(108, -390 + sy, 92, -380 + sy); ctx.quadraticCurveTo(76, -390 + sy, 92, -420 + sy); ctx.fill(); }
+  ctx.restore();
+}
+
+// Gerente: mais velho, careca com bigode, camisa branca, colete verde, gravata
+// o: {ox, oy, boca, fala, bE, bD, palido, sorriso (0..1 normal → >1 largo demais), sombra, t}
+function gerente(x, fy, s, o = {}) {
+  const T = COR.T, t = o.t ?? 0, pele = o.palido ? `rgb(${lerp(232, 226, o.palido)},${lerp(185, 228, o.palido)},${lerp(143, 226, o.palido)})` : COR.peleG;
+  ctx.save(); ctx.translate(x, fy); ctx.scale(s, s);
+  ctx.lineWidth = 7; ctx.strokeStyle = T;
+  for (const sx of [-1, 1]) { ctx.fillStyle = '#3B3A44'; rr(sx * 23 - 17, -120, 34, 120, 14); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#1A1A1A'; rr(sx * 23 - 25, -14, 46, 20, 8); ctx.fill(); }
+  ctx.fillStyle = '#F2F2F2'; rr(-70, -275, 140, 165, 36); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = o.colete ?? COR.verdeE; rr(-70, -260, 46, 150, 18); ctx.fill(); rr(24, -260, 46, 150, 18); ctx.fill();
+  ctx.fillStyle = '#B33A3A'; ctx.beginPath(); ctx.moveTo(-10, -270); ctx.lineTo(10, -270); ctx.lineTo(14, -170); ctx.lineTo(0, -150); ctx.lineTo(-14, -170); ctx.fill();
+  const braco = (sx, ang) => { ctx.save(); ctx.translate(sx * 64, -255); ctx.rotate(ang); ctx.fillStyle = '#F2F2F2'; rr(-18, 0, 36, 108, 16); ctx.fill(); ctx.stroke(); ctx.fillStyle = pele; ctx.beginPath(); ctx.arc(0, 118, 20, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore(); return [sx * 64 - Math.sin(ang) * 118, -255 + Math.cos(ang) * 118]; };
+  braco(-1, o.bE ?? 0.2); const mD = braco(1, o.bD ?? -0.2);
+  if (o.segura === 'papel') { ctx.save(); ctx.translate(mD[0], mD[1] - 30); ctx.rotate(0.12); ctx.fillStyle = COR.papel; ctx.fillRect(-35, -45, 70, 90); ctx.lineWidth = 4; ctx.strokeRect(-35, -45, 70, 90); ctx.fillStyle = '#9A9080'; for (let i = 0; i < 4; i++) ctx.fillRect(-24, -30 + i * 18, 48, 4); ctx.restore(); }
+  // cabeça
+  ctx.fillStyle = pele; ctx.beginPath(); ctx.ellipse(0, -370, 100, 96, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#9C9AA6'; ctx.beginPath(); ctx.ellipse(-92, -380, 22, 40, 0.2, 0, 7); ctx.fill(); ctx.beginPath(); ctx.ellipse(92, -380, 22, 40, -0.2, 0, 7); ctx.fill();
+  olhos(0, -375, 20, o.ox ?? 0, o.oy ?? 0, o.aberto ?? 1, T);
+  const gs = o.sob ?? 0; lin([[-52, -408 + gs * 2], [-16, -404 - gs * 22]], T, 7); lin([[16, -404 - gs * 22], [52, -408 + gs * 2]], T, 7);
+  // bigode
+  ctx.fillStyle = '#6E6A72'; ctx.beginPath(); ctx.ellipse(-20, -332, 26, 12, 0.15, 0, 7); ctx.fill(); ctx.beginPath(); ctx.ellipse(20, -332, 26, 12, -0.15, 0, 7); ctx.fill();
+  const so = o.sorriso ?? 0;
+  if (so > 0) {
+    // sorriso que cresce além do rosto
+    const w = 30 + so * 70;
+    ctx.fillStyle = '#2A0E10'; ctx.beginPath(); ctx.moveTo(-w, -312); ctx.quadraticCurveTo(0, -312 + 30 + so * 40, w, -312); ctx.quadraticCurveTo(0, -312 + 10 + so * 18, -w, -312); ctx.fill();
+    if (so > 0.6) { ctx.fillStyle = '#F4F0E4'; const n = Math.floor(6 + so * 10); for (let i = 0; i < n; i++) { const u = (i + 0.5) / n, xx = lerp(-w * 0.9, w * 0.9, u), yy = -312 + Math.sin(u * Math.PI) * (12 + so * 20); ctx.fillRect(xx - 5, yy - 2, 10, 14); } }
+  } else boca(0, -306, o.boca ?? 'reta', o.fala ?? 0, T);
+  if (o.sombra) { ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = `rgba(5,4,8,${o.sombra})`; ctx.fillRect(-200, -500, 400, 520); ctx.globalCompositeOperation = 'source-over'; }
+  ctx.restore();
+}
+
+// ---------- o papel com as regras ----------
+const REGRAS = [
+  ['1. Se um carro sem farol parar', 'na bomba 3, NÃO abasteça.'],
+  ['2. Depois das 3h, o banheiro', 'está sempre quebrado.'],
+  ['3. Nunca saia de baixo da luz.'],
+];
+// vis: [k1,k2,k3] 0..1 (quanto de cada regra está escrito); dest: índice destacado
+function papelRegras(cx, cy, esc, rot, vis, dest = -1, titulo = 'TURNO DA NOITE', lista = REGRAS) {
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot); ctx.scale(esc, esc);
+  ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 40; ctx.fillStyle = COR.papel; ctx.fillRect(-380, -470, 760, 940); ctx.shadowColor = 'transparent';
+  ctx.strokeStyle = 'rgba(80,120,200,0.25)'; ctx.lineWidth = 3; for (let y = -330; y < 440; y += 70) { ctx.beginPath(); ctx.moveTo(-350, y); ctx.lineTo(350, y); ctx.stroke(); }
+  ctx.strokeStyle = 'rgba(220,80,80,0.35)'; ctx.beginPath(); ctx.moveTo(-290, -470); ctx.lineTo(-290, 470); ctx.stroke();
+  ctx.fillStyle = '#1B2240'; ctx.font = '80px "Caveat"'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText(titulo, -260, -350);
+  let y = -215;
+  lista.forEach((r, i) => {
+    const k = vis[i] ?? 0;
+    r.forEach((linha, j) => {
+      const n = Math.floor(linha.length * clamp(k * r.length - j));
+      if (n > 0) { ctx.fillStyle = i === dest ? '#C0262D' : '#1B2240'; ctx.font = '58px "Caveat"'; ctx.fillText(linha.slice(0, n), -265, y); }
+      y += 82;
+    });
+    if (i === dest && k >= 1) { ctx.strokeStyle = '#C0262D'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-266, y - 64); ctx.lineTo(330, y - 70); ctx.stroke(); }
+    y += 40;
+  });
+  ctx.restore();
+}
+function maos(cx, cy, s) { // duas mãos segurando um papel por baixo
+  for (const sx of [-1, 1]) { ctx.save(); ctx.translate(cx + sx * 330 * s, cy); ctx.fillStyle = COR.pele; ctx.strokeStyle = COR.T; ctx.lineWidth = 7; ctx.beginPath(); ctx.ellipse(0, 0, 70 * s, 55 * s, 0, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = COR.verde; rr(-50 * s, 40 * s, 100 * s, 300, 20); ctx.fill(); ctx.stroke(); ctx.restore(); }
+}
+
+// ---------- legenda (palavra por palavra) ----------
+const NORM = w => w.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+const DEST = { farol: 'perigo', abasteca: 'perigo', quebrado: 'perigo', luz: 'perigo', gerente: 'perigo', sorriso: 'perigo', maior: 'perigo', branco: 'perigo', quatro: 'perigo', passo: 'perigo', dezessete: 'amarelo', regra: 'amarelo', tres: 'amarelo' };
+let GRUPOS = [];
+function montaLegendas(TL) {
+  GRUPOS = [];
+  for (const L of TL.linhas) {
+    let g = [];
+    L.palavras.forEach(([w, t], i) => {
+      g.push([w, t]);
+      const ultima = i === L.palavras.length - 1;
+      if (g.length >= 3 || /[.,:!?…]$/.test(w) && g.length >= 2 || ultima) { GRUPOS.push({ quem: L.quem, ws: g, ini: g[0][1], fimLinha: ultima ? L.fim : null }); g = []; }
+    });
+  }
+  GRUPOS.forEach((G, i) => {
+    const prox = GRUPOS[i + 1], pi = prox ? prox.ini : 1e9;
+    G.fim = G.fimLinha != null ? Math.min(pi, G.fimLinha + 0.5) : pi;
+  });
+}
+function desenhaLegenda(t, y = 430) {
+  const G = GRUPOS.find(g => t >= g.ini - 0.02 && t < g.fim);
+  if (!G) return;
+  const base = G.quem === 'c' ? COR.carro : G.quem === 'g' ? COR.gerente : '#FFFFFF';
+  ctx.font = '84px "Archivo Black"'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  const txt = G.ws.map(([w]) => w.toUpperCase());
+  const larg = txt.map(w => ctx.measureText(w).width), esp = 26;
+  // quebra em linhas de no máx 900px
+  const linhas = [[]]; let lw = 0;
+  txt.forEach((w, i) => { if (lw + larg[i] > 900 && linhas[linhas.length - 1].length) { linhas.push([]); lw = 0; } linhas[linhas.length - 1].push(i); lw += larg[i] + esp; });
+  linhas.forEach((ids, li) => {
+    const tot = ids.reduce((a, i) => a + larg[i], 0) + esp * (ids.length - 1);
+    let x = 540 - tot / 2; const yy = y + li * 100 - (linhas.length - 1) * 50;
+    ids.forEach(i => {
+      const [w, tw] = G.ws[i];
+      if (t >= tw - 0.02) {
+        const k = clamp((t - tw) / 0.12), sc = 0.6 + 0.4 * suave(k) + 0.08 * Math.sin(k * Math.PI);
+        const d = DEST[NORM(w)];
+        const cor = d === 'perigo' ? COR.perigo : d === 'amarelo' ? COR.amarelo : base;
+        ctx.save(); ctx.translate(x + larg[i] / 2, yy); ctx.scale(sc, sc);
+        ctx.lineWidth = 16; ctx.strokeStyle = '#000'; ctx.lineJoin = 'round'; ctx.strokeText(txt[i], -larg[i] / 2, 0);
+        ctx.fillStyle = cor; ctx.fillText(txt[i], -larg[i] / 2, 0); ctx.restore();
+      }
+      x += larg[i] + esp;
+    });
+  });
+}
+function tag() {
+  ctx.font = '30px "Archivo Black"'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  const s = (typeof TAGTXT !== 'undefined') ? TAGTXT : 'REGRAS DA MADRUGADA · POSTO 24H', w = ctx.measureText(s).width;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; rr(56, 150, w + 44, 56, 10); ctx.fill();
+  ctx.fillStyle = COR.verde; ctx.fillRect(56, 150, 8, 56);
+  ctx.fillStyle = '#fff'; ctx.fillText(s, 80, 179);
+}
+
+const TL = {"dur": 61.64, "linhas": [{"quem": "n", "i": 0, "ini": 0.15, "fim": 5.03, "palavras": [["Regra", 0.15], ["número", 0.507], ["um:", 0.918], ["se", 1.585], ["um", 1.741], ["paciente", 1.897], ["pedir", 2.321], ["pra", 2.61], ["você", 2.811], ["fechar", 3.056], ["a", 3.391], ["cortina...", 3.502], ["não", 4.391], ["feche.", 4.652]]}, {"quem": "n", "i": 1, "ini": 5.53, "fim": 9.576, "palavras": [["Meu", 5.53], ["primeiro", 5.734], ["plantão", 6.165], ["no", 6.551], ["hospital", 6.71], ["foi", 7.142], ["na", 7.346], ["ala", 7.505], ["dos", 7.71], ["quartos", 7.914], ["vazios.", 8.3], ["Terceiro", 8.919], ["andar.", 9.309]]}, {"quem": "n", "i": 2, "ini": 9.926, "fim": 12.926, "palavras": [["O", 9.926], ["enfermeiro-chefe", 10.042], ["me", 10.81], ["entregou", 10.972], ["uma", 11.414], ["prancheta", 11.624], ["com", 12.112], ["três", 12.321], ["regras.", 12.577]]}, {"quem": "n", "i": 3, "ini": 13.326, "fim": 17.539, "palavras": [["Regra", 13.326], ["dois:", 13.751], ["o", 14.415], ["quarto", 14.542], ["trezentos", 14.925], ["e", 15.461], ["treze", 15.589], ["tá", 15.921], ["desocupado.", 16.099], ["Sempre.", 16.986]]}, {"quem": "n", "i": 4, "ini": 17.889, "fim": 21.019, "palavras": [["Regra", 17.889], ["três:", 18.304], ["se", 18.969], ["a", 19.102], ["campainha", 19.197], ["do", 19.595], ["trezentos", 19.728], ["e", 20.127], ["treze", 20.221], ["tocar,", 20.468], ["não", 20.715], ["vá.", 20.886]]}, {"quem": "n", "i": 5, "ini": 21.469, "fim": 25.857, "palavras": [["Às", 21.469], ["três", 21.555], ["e", 21.69], ["dezessete,", 21.752], ["a", 22.57], ["campainha", 22.763], ["do", 23.575], ["trezentos", 23.846], ["e", 24.658], ["treze", 24.852], ["tocou.", 25.355]]}, {"quem": "n", "i": 6, "ini": 26.207, "fim": 29.328, "palavras": [["Eu", 26.207], ["não", 26.368], ["fui.", 26.576], ["Ela", 27.368], ["tocou", 27.559], ["de", 27.836], ["novo.", 27.985], ["E", 28.706], ["de", 28.841], ["novo.", 29.03]]}, {"quem": "n", "i": 7, "ini": 29.728, "fim": 32.311, "palavras": [["Aí", 29.728], ["parou.", 29.977], ["E", 30.892], ["o", 30.996], ["corredor", 31.101], ["ficou", 31.497], ["em", 31.769], ["silêncio.", 31.915]]}, {"quem": "n", "i": 8, "ini": 32.711, "fim": 37.563, "palavras": [["Só", 32.711], ["que", 32.868], ["agora", 33.07], ["tinha", 33.361], ["uma", 33.652], ["maca", 33.854], ["no", 34.101], ["corredor.", 34.257], ["Com", 35.08], ["alguém", 35.273], ["deitado.", 35.595], ["Coberto", 36.341], ["até", 36.792], ["a", 37.031], ["cabeça.", 37.164]]}, {"quem": "n", "i": 9, "ini": 37.913, "fim": 40.32, "palavras": [["Debaixo", 37.913], ["do", 38.373], ["lençol,", 38.562], ["uma", 38.968], ["voz", 39.211], ["pediu", 39.455], ["baixinho.", 39.806]]}, {"quem": "g", "i": 10, "ini": 40.77, "fim": 43.502, "palavras": [["Fecha", 40.77], ["a", 41.071], ["cortina,", 41.187], ["por", 41.581], ["favor...", 41.789], ["a", 42.532], ["luz", 42.637], ["tá", 42.827], ["incomodando.", 42.975]]}, {"quem": "n", "i": 11, "ini": 43.952, "fim": 47.359, "palavras": [["Eu", 43.952], ["não", 44.1], ["fechei.", 44.291], ["Fiquei", 45.048], ["parado", 45.409], ["do", 45.77], ["lado", 45.939], ["da", 46.204], ["maca", 46.372], ["até", 46.637], ["amanhecer.", 46.854]]}, {"quem": "n", "i": 12, "ini": 48.159, "fim": 50.465, "palavras": [["De", 48.159], ["manhã,", 48.32], ["o", 48.853], ["enfermeiro-chefe", 48.967], ["puxou", 49.716], ["o", 50.011], ["lençol.", 50.124]]}, {"quem": "n", "i": 13, "ini": 50.815, "fim": 53.843, "palavras": [["A", 50.815], ["maca", 50.95], ["tava", 51.249], ["vazia.", 51.547], ["Só", 52.23], ["tinha", 52.387], ["uma", 52.678], ["ficha", 52.879], ["de", 53.171], ["internação.", 53.327]]}, {"quem": "n", "i": 14, "ini": 54.243, "fim": 56.844, "palavras": [["Com", 54.243], ["o", 54.464], ["meu", 54.586], ["nome.", 54.807], ["Quarto", 55.458], ["trezentos", 55.843], ["e", 56.382], ["treze.", 56.511]]}]};
+// ============================================================
+// REGRAS DA MADRUGADA · Ep. 05 "Quarto 313"
+// ============================================================
+const TAGTXT = 'REGRAS DA MADRUGADA · HOSPITAL';
+delete DEST.tres; delete DEST.luz; delete DEST.gerente;
+Object.assign(DEST, { cortina: 'perigo', feche: 'perigo', vazios: 'amarelo', desocupado: 'perigo', campainha: 'amarelo', silencio: 'perigo', coberto: 'perigo', lencol: 'perigo', amanhecer: 'amarelo', vazia: 'perigo', nome: 'perigo', treze: 'amarelo', dezessete: 'amarelo', maca: 'amarelo' });
+const L = k => TL.linhas[k].ini, F = k => TL.linhas[k].fim;
+const PWw = (k, re) => { const p = TL.linhas[k].palavras.find(([w]) => re.test(NORM(w))); return p ? p[1] : L(k); };
+const PIJAMA = '#3FA7A0';
+const REGRAS_HOSP = [
+  ['1. Se um paciente pedir pra', 'fechar a cortina, NÃO feche.'],
+  ['2. O quarto 313 está', 'desocupado. Sempre.'],
+  ['3. Se a campainha do 313', 'tocar, não vá.'],
+];
+
+// ---------- corredor do hospital ----------
+// o: {pisca, maca:{x, s, respira, vazia, lencol(0..1 puxado)}, enf:{...}, chefe:{...}, painel, dia, porta313}
+function corredor(t, o = {}) {
+  const dia = o.dia ?? 0;
+  ctx.fillStyle = dia ? '#D7E4DE' : '#16231F'; ctx.fillRect(-400, -400, W + 800, H + 800);
+  // parede do fundo em perspectiva
+  ctx.fillStyle = dia ? '#BFD3CB' : '#1D2E29'; ctx.beginPath(); ctx.moveTo(380, 520); ctx.lineTo(700, 520); ctx.lineTo(700, 1060); ctx.lineTo(380, 1060); ctx.fill();
+  ctx.fillStyle = dia ? '#A9BEB5' : '#0F1916';
+  ctx.beginPath(); ctx.moveTo(-400, 0); ctx.lineTo(380, 520); ctx.lineTo(380, 1060); ctx.lineTo(-400, 1700); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(W + 400, 0); ctx.lineTo(700, 520); ctx.lineTo(700, 1060); ctx.lineTo(W + 400, 1700); ctx.fill();
+  // piso
+  ctx.fillStyle = dia ? '#E9ECE6' : '#2A3330'; ctx.beginPath(); ctx.moveTo(380, 1060); ctx.lineTo(700, 1060); ctx.lineTo(W + 400, 1920); ctx.lineTo(-400, 1920); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(540, 1060); ctx.lineTo(540, 1920); ctx.stroke();
+  // portas dos quartos
+  const portas = [[180, 640, '311'], [-60, 520, '312'], [880, 640, '313'], [1120, 520, '314']];
+  for (const [x, top, n] of portas) {
+    const esq = x < 540, w = 120, h = 420;
+    ctx.fillStyle = dia ? '#7FA89A' : '#21362F'; ctx.fillRect(x - w / 2, top + 260, w, h);
+    ctx.fillStyle = n === '313' && o.porta313 ? '#FF4040' : (dia ? '#2B3F38' : '#9FB8AE');
+    ctx.font = '34px "Archivo Black"'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(n, x, top + 230);
+    if (n === '313' && o.porta313) glow(x, top + 230, 90, '255,64,64', 0.35);
+  }
+  // lâmpadas do teto
+  for (const [x, y, w] of [[540, 300, 260], [540, 450, 170], [540, 540, 110]]) {
+    const on = o.pisca && x === 540 && y === 300 ? (Math.sin(t * 23) > -0.5 ? 1 : 0.2) : 1;
+    ctx.fillStyle = on > 0.5 ? '#EFFFF8' : '#3A4A44'; rr(x - w / 2, y, w, 16, 8); ctx.fill();
+    if (!dia) glow(x, y + 300, 500 * (w / 260), '200,255,230', 0.18 * on);
+  }
+  // placa
+  ctx.fillStyle = '#0F3A30'; rr(410, 560, 260, 70, 10); ctx.fill(); ctx.fillStyle = '#E8F5EF'; ctx.font = '36px "Archivo Black"'; ctx.fillText('3º ANDAR', 540, 596);
+  // maca
+  if (o.maca) maca(o.maca.x ?? 600, o.maca.y ?? 1500, o.maca.s ?? 1, t, o.maca);
+  if (o.chefe) gerente(o.cx ?? 800, 1830, 1.2, Object.assign({ t, colete: '#E9EEF0' }, o.chefe));
+  if (o.enf) frentista(o.ex ?? 300, 1830, 1.25, Object.assign({ t, cor: PIJAMA }, o.enf));
+  // posto de enfermagem
+  if (o.balcao) { ctx.fillStyle = '#C9D9D2'; ctx.fillRect(-400, 1600, 900, 400); ctx.fillStyle = '#E8F1EC'; ctx.fillRect(-400, 1580, 900, 30); }
+  ctx.fillStyle = `rgba(4,10,8,${dia ? 0 : (o.escuro ?? 0.25)})`; ctx.fillRect(-400, -400, W + 800, H + 800);
+}
+function maca(x, y, s, t, o) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  ctx.fillStyle = '#8E9AA0'; ctx.fillRect(-260, 0, 520, 20); for (const px of [-230, 230]) { ctx.fillRect(px - 6, 20, 12, 160); circ(px, 190, 16, '#333'); }
+  ctx.fillStyle = '#DDE3E0'; rr(-270, -30, 540, 40, 12); ctx.fill();
+  const puxa = clamp(o.lencol ?? 0);
+  if (!o.vazia || puxa < 1) {
+    // corpo coberto (some quando vazia e o lençol sai)
+    const resp = (o.respira ?? 1) * Math.sin(t * 2.2) * 4;
+    ctx.save(); ctx.translate(lerp(0, 600, puxa), lerp(0, -80, puxa)); ctx.rotate(lerp(0, 0.4, puxa));
+    ctx.fillStyle = '#F2F4F1'; ctx.strokeStyle = COR.T; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(-260, -20);
+    if (!o.vazia) { ctx.quadraticCurveTo(-240, -110 - resp, -170, -120 - resp); ctx.quadraticCurveTo(-120, -125, -110, -80); ctx.quadraticCurveTo(0, -95 - resp, 120, -70); ctx.quadraticCurveTo(220, -80, 260, -20); }
+    else { ctx.quadraticCurveTo(0, -60, 260, -20); }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 4; for (const fx of [-60, 40, 150]) { ctx.beginPath(); ctx.moveTo(fx, -70); ctx.lineTo(fx + 30, -25); ctx.stroke(); }
+    ctx.restore();
+  }
+  if (o.mao && !o.vazia) { const bal = Math.sin(t * 1.3) * 4; lin([[200, -30], [214 + bal, 60], [220 + bal, 120]], '#B8C2BE', 26); ctx.fillStyle = '#B8C2BE'; ctx.beginPath(); ctx.ellipse(222 + bal, 140, 20, 28, 0.1, 0, 7); ctx.fill(); for (let i = 0; i < 4; i++) lin([[210 + i * 8 + bal, 160], [208 + i * 9 + bal, 200 + (i % 2) * 8]], '#B8C2BE', 7); }
+  if (o.vazia && puxa >= 0.6) { ctx.save(); ctx.translate(-30, -50); ctx.rotate(-0.1); ctx.fillStyle = COR.papel; ctx.fillRect(-60, -40, 120, 80); ctx.strokeStyle = '#555'; ctx.lineWidth = 3; ctx.strokeRect(-60, -40, 120, 80); ctx.restore(); }
+  ctx.restore();
+}
+function painelCampainha(t, toca, z = 1) {
+  ctx.fillStyle = '#0B1311'; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.translate(540, 1000); ctx.scale(z, z);
+  ctx.fillStyle = '#C9D9D2'; rr(-380, -320, 760, 640, 30); ctx.fill(); ctx.strokeStyle = COR.T; ctx.lineWidth = 8; ctx.stroke();
+  ctx.fillStyle = '#0F3A30'; ctx.font = '44px "Archivo Black"'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('CHAMADA DE LEITO', 0, -250);
+  const nums = ['309', '310', '311', '312', '313', '314'];
+  nums.forEach((n, i) => { const x = -220 + (i % 3) * 220, y = -100 + Math.floor(i / 3) * 220; const on = n === '313' && toca && Math.sin(t * 10) > 0; ctx.fillStyle = on ? '#FF4040' : '#5A6A64'; circ(x, y, 60, ctx.fillStyle); if (on) glow(x, y, 160, '255,64,64', 0.5); ctx.fillStyle = '#0F3A30'; ctx.font = '40px "Archivo Black"'; ctx.fillText(n, x, y + 100); });
+  ctx.restore(); vinheta(0.6);
+}
+function ficha(t, k) {
+  ctx.fillStyle = '#2A2E2C'; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.translate(540, 1060); ctx.rotate(0.03); ctx.scale(lerp(1, 1.18, k), lerp(1, 1.18, k));
+  ctx.fillStyle = '#6B4B36'; rr(-400, -520, 800, 1040, 30); ctx.fill();
+  ctx.fillStyle = '#A9A9A9'; rr(-110, -560, 220, 80, 16); ctx.fill();
+  ctx.fillStyle = '#F7F5EE'; ctx.fillRect(-350, -460, 700, 920);
+  ctx.fillStyle = '#0F3A30'; ctx.font = '50px "Archivo Black"'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText('FICHA DE INTERNAÇÃO', -310, -370);
+  ctx.fillStyle = '#333'; ctx.font = '40px "IBM Plex Mono"';
+  ctx.fillText('PACIENTE:', -310, -250); ctx.fillText('QUARTO:', -310, -120); ctx.fillText('ENTRADA:', -310, 10);
+  ctx.fillStyle = '#C0262D'; ctx.font = '80px "Caveat"';
+  ctx.fillText('Lucas M.', -60, -248); ctx.fillText('313', -60, -118);
+  ctx.fillStyle = '#1B2240'; ctx.fillText('hoje, 3h17', -60, 12);
+  ctx.restore();
+  vinheta(0.5);
+}
+
+// ========== cenas ==========
+function cenaGancho(t, u) {
+  camera(560, 1300, lerp(1.6, 1.85, u / 5), () => corredor(t, { pisca: true, escuro: 0.45, maca: { x: 560, y: 1520, s: 1.1, respira: 1, mao: true } }));
+  const ce = PWw(0, /feche/);
+  if (t > ce) { const k = faixa(t, ce, ce + 0.15) * (1 - faixa(t, ce + 0.15, ce + 0.9)); if (k > 0) vinheta(0.7 * k, '229,72,77'); }
+  vinheta(0.7);
+}
+function cenaPlantao(t, u) {
+  camera(lerp(520, 470, u / 4), 1150, 1.0, () => corredor(t, { balcao: true, enf: { ox: 0.4, oy: -0.1 }, ex: 200 }));
+  vinheta(0.55);
+}
+function cenaChefe(t, u) {
+  const e = faixa(t, L(2) + 0.6, L(2) + 1.3);
+  camera(380, 1400, 1.5, () => corredor(t, { chefe: { ox: -0.7, bD: lerp(-0.2, -1.3, e), segura: e < 0.9 ? 'papel' : null }, cx: 560, enf: { ox: 0.7, bD: lerp(-0.25, -1.0, e), segura: e > 0.9 ? 'papel' : null }, ex: 230 }));
+  vinheta(0.55);
+}
+function cenaRegras(t, u) {
+  ctx.fillStyle = '#0B1311'; ctx.fillRect(0, 0, W, H);
+  const v2 = faixa(t, L(3) + 0.3, F(3)), v3 = faixa(t, L(4) + 0.3, F(4));
+  papelRegras(540, 1060, lerp(1.0, 1.1, faixa(t, L(3), F(4))), -0.03, [1, v2, v3], t < L(4) ? 1 : 2, 'PLANTÃO NOTURNO', REGRAS_HOSP);
+  maos(540, 1560, 1); vinheta(0.6);
+}
+function cenaCampainha(t, u) { painelCampainha(t, true, lerp(1, 1.12, u / 5)); }
+function cenaNaoVai(t, u) {
+  camera(260, 1420, 1.9, () => corredor(t, { balcao: true, ex: 260, enf: { ox: 1, sob: 1, boca: 'nervoso', suor: true, treme: 2 } }));
+  vinheta(0.7);
+}
+function cenaSilencio(t, u) {
+  camera(540, 900, lerp(1.2, 1.5, u / 3), () => corredor(t, { pisca: true, escuro: 0.4 }));
+  vinheta(0.7);
+}
+function cenaMaca(t, u) {
+  const a = faixa(t, L(8) + 0.3, L(8) + 1.2);
+  camera(540, 1250, lerp(1.0, 1.25, faixa(t, L(8), F(8))), () => { corredor(t, { pisca: true, escuro: 0.4, maca: a > 0 ? { x: 560, y: 1430, s: 0.9 } : null }); });
+  if (a < 1) { ctx.fillStyle = `rgba(0,0,0,${0.0})`; }
+  vinheta(0.7);
+}
+function cenaVoz(t, u) {
+  camera(400, 1440, lerp(2.4, 2.8, u / 4), () => corredor(t, { escuro: 0.5, maca: { x: 560, y: 1520, s: 1.1, respira: 2, mao: true } }));
+  vinheta(0.8);
+}
+function cenaVigia(t, u) {
+  const h = Math.floor(lerp(17, 58, faixa(t, L(11), F(11))));
+  camera(480, 1350, 1.25, () => corredor(t, { escuro: 0.45, maca: { x: 640, y: 1560, s: 1, respira: 1 }, ex: 240, enf: { ox: 1, oy: 0.3, sob: 1, boca: 'nervoso', suor: true } }));
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'; rr(760, 1640, 260, 96, 16); ctx.fill();
+  ctx.fillStyle = '#7CFFB2'; ctx.font = '64px "IBM Plex Mono"'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t < F(11) - 0.4 ? `03:${String(h).padStart(2, '0')}` : '05:58', 890, 1690);
+  vinheta(0.65);
+}
+function cenaPuxa(t, u) {
+  const p = faixa(t, PWw(12, /puxou/), PWw(12, /lencol/) + 0.5), vazia = true;
+  camera(560, 1380, 1.35, () => corredor(t, { dia: 1, maca: { x: 600, y: 1560, s: 1, vazia, lencol: p }, chefe: { ox: -0.6, bD: -1.0 }, cx: 920, enf: { ox: 1, sob: 1, boca: 'medo' }, ex: 220 }));
+  vinheta(0.35);
+}
+function cenaVazia(t, u) {
+  camera(560, 1500, lerp(2.0, 2.6, u / 2.5), () => corredor(t, { dia: 1, maca: { x: 560, y: 1560, s: 1, vazia: true, lencol: 1 } }));
+  vinheta(0.4);
+}
+function cenaFicha(t, u) {
+  ficha(t, faixa(t, L(14), F(14)));
+  const n = PWw(14, /nome/);
+  const ch = faixa(t, n, n + 0.1) * (1 - faixa(t, n + 0.1, n + 1.0));
+  if (ch > 0) vinheta(0.8 * ch, '229,72,77');
+}
+function cenaFim(t, u) {
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  if (u < 0.12) { ctx.fillStyle = 'rgba(229,72,77,0.35)'; ctx.fillRect(0, 0, W, H); }
+  const a = k => faixa(u, k, k + 0.35);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.globalAlpha = a(0); ctx.fillStyle = '#fff'; ctx.font = '104px "Archivo Black"';
+  ctx.fillText('VOCÊ', 540, 820); ctx.fillStyle = COR.perigo; ctx.fillText('FECHARIA?', 540, 940);
+  ctx.globalAlpha = a(0.6); ctx.fillStyle = COR.amarelo; ctx.font = '44px "Archivo Black"'; ctx.fillText('COMENTA AÍ', 540, 1080);
+  ctx.globalAlpha = a(1.0); ctx.fillStyle = '#8A90A0'; ctx.font = '40px "Archivo Black"';
+  ctx.fillText('REGRAS DA MADRUGADA', 540, 1240); ctx.fillText('@continuaamanha.tv', 540, 1300);
+  ctx.globalAlpha = 1;
+}
+
+const _b = [0, L(1) - 0.3, L(2) - 0.25, L(3) - 0.25, L(5) - 0.25, L(6) - 0.2, L(7) - 0.2, L(8) - 0.2, L(9) - 0.2, L(11) - 0.25, L(12) - 0.4, L(13) - 0.2, L(14) - 0.2, F(14) + 1.4];
+const _f = [cenaGancho, cenaPlantao, cenaChefe, cenaRegras, cenaCampainha, cenaNaoVai, cenaSilencio, cenaMaca, cenaVoz, cenaVigia, cenaPuxa, cenaVazia, cenaFicha];
+const CENAS = _f.map((f, i) => [_b[i], _b[i + 1], f]).concat([[_b[13], 999, cenaFim]]);
+
+montaLegendas(TL);
+window.DURACAO = TL.dur; window.FPS = FPS;
+window.renderFrame = function (t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.filter = 'none';
+  const c = CENAS.find(c => t >= c[0] && t < c[1]) || CENAS[CENAS.length - 1];
+  c[2](t, t - c[0]);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1;
+  if (t < CENAS[CENAS.length - 1][0]) { tag(); desenhaLegenda(t); }
+};
+window.pronto = Promise.all(['84px "Archivo Black"', '52px "Caveat"', '30px "IBM Plex Mono"'].map(f => document.fonts.load(f))).then(() => document.fonts.ready).then(() => true);
+if (!location.search.includes('render')) window.pronto.then(() => { const t0 = performance.now(); (function loop() { renderFrame(((performance.now() - t0) / 1000) % TL.dur); requestAnimationFrame(loop); })(); });
+</script></html>
